@@ -1,0 +1,18 @@
+[
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "type": "openai",
+    "models": [
+      "deepseek-v4-pro"
+    ],
+    "defaultModel": "deepseek-v4-pro",
+    "baseURL": "https://api.deepseek.com",
+    "apiKey": "{DEEPSEEK_API_KEY}",
+    "defaultOptions": {
+      "thinking": {
+        "type": "disabled"
+      }
+    }
+  }
+]

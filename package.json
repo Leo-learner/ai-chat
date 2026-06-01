@@ -1,0 +1,31 @@
+{
+  "name": "ai-chat",
+  "version": "1.0.0",
+  "description": "Self-hosted AI chat website with multi-provider support",
+  "license": "MIT",
+  "main": "server.js",
+  "scripts": {
+    "build": "node scripts/build-frontend.js",
+    "prestart": "npm run build",
+    "start": "node server.js",
+    "dev": "SERVE_DIST=0 node --watch server.js",
+    "check": "node --check server.js && node --check providers.js && node --check public/app.js && node --check scripts/smoke-auth.js && node --check scripts/smoke-startup.js && node scripts/check-css.js",
+    "smoke:startup": "node scripts/smoke-startup.js",
+    "smoke:auth": "node scripts/smoke-auth.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "gpt-tokenizer": "^3.4.0",
+    "iconv-lite": "^0.7.2",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "csso": "^5.0.5",
+    "esbuild": "^0.28.0"
+  }
+}

@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+mac-controller/.venv/
+__pycache__/
+*.py[cod]
+
+# Build output
+public/dist/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+~/.ai-chat/
+
+# Runtime data
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs and health checks
+*.log
+healthcheck.log
+ngrok.log
+
+# Local backups and editor state
+*.bak
+*.bak.*
+*.bak_*
+*.previous
+.DS_Store
+public/.DS_Store
+.serena/
+
+# OS / editor
+.vscode/
+.idea/
+*.swp
+*.swo
