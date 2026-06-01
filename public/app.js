@@ -312,6 +312,7 @@ const controlUiState = {
   terminalRunning: false,
   terminalHistory: [],
   terminalHistoryIndex: -1,
+  terminalCwd: '~',
 };
 
 function applyAppModeCopy() {
@@ -763,7 +764,7 @@ function isAdminUser() {
 }
 
 function canAccessTab(tab) {
-  if (tab === 'control' || tab === 'finder') {
+  if (tab === 'control' || tab === 'finder' || tab === 'terminal') {
     return isAdminUser() && !state.isAppMode;
   }
   return tab === 'chat' || tab === 'memory';
@@ -1304,6 +1305,7 @@ function updateChatHeaderTitle() {
   const pageTitles = {
     memory: '记忆库',
     control: '控制台',
+    terminal: '终端',
     finder: '文件',
   };
   const title = state.activeTab === 'chat'
@@ -1716,7 +1718,8 @@ function focusMacOSPrimaryField() {
   const target = (() => {
     if (state.activeTab === 'memory') return dom.memorySearchInput || dom.messageInput;
     if (state.activeTab === 'finder') return dom.finderSearchInput || dom.messageInput;
-    if (state.activeTab === 'control') return document.getElementById('terminalInput') || dom.messageInput;
+    if (state.activeTab === 'control') return document.getElementById('appNameInput') || dom.messageInput;
+    if (state.activeTab === 'terminal') return document.getElementById('terminalInput') || dom.messageInput;
     return dom.messageInput;
   })();
   target?.focus?.({ preventScroll: true });
@@ -3626,6 +3629,7 @@ function setActiveTab(tab) {
   const tabChat = document.getElementById('tabChat');
   const tabMemory = document.getElementById('tabMemory');
   const tabControl = document.getElementById('tabControl');
+  const tabTerminal = document.getElementById('tabTerminal');
   const tabFinder = document.getElementById('tabFinder');
   const inputArea = document.getElementById('inputArea');
   const tabNav = document.getElementById('tabNav');
@@ -3637,6 +3641,7 @@ function setActiveTab(tab) {
   if (tabChat) tabChat.classList.toggle('hidden', tab !== 'chat');
   if (tabMemory) tabMemory.classList.toggle('hidden', tab !== 'memory');
   if (tabControl) tabControl.classList.toggle('hidden', tab !== 'control');
+  if (tabTerminal) tabTerminal.classList.toggle('hidden', tab !== 'terminal');
   if (tabFinder) tabFinder.classList.toggle('hidden', tab !== 'finder');
   if (inputArea) inputArea.classList.toggle('hidden', tab !== 'chat');
   updateChatHeaderTitle();
@@ -3658,6 +3663,11 @@ function setActiveTab(tab) {
     loadMemories();
     refreshMemoryHealth();
   }
+  if (tab === 'terminal') {
+    ensureTerminalEmptyState();
+    syncTerminalCwdLabel();
+    setTimeout(() => document.getElementById('terminalInput')?.focus?.({ preventScroll: true }), 50);
+  }
   syncScrollToBottomButton();
 }
 
@@ -3673,6 +3683,7 @@ function initControlPanel() {
   const tabChat = document.getElementById('tabChat');
   const tabMemory = document.getElementById('tabMemory');
   const tabControl = document.getElementById('tabControl');
+  const tabTerminal = document.getElementById('tabTerminal');
   const tabFinder = document.getElementById('tabFinder');
   const inputArea = document.getElementById('inputArea');
 
@@ -3801,13 +3812,18 @@ function initControlPanel() {
   const terminalInput = document.getElementById('terminalInput');
   if (terminalInput) {
     ensureTerminalEmptyState();
+    syncTerminalCwdLabel();
     document.getElementById('terminalRunBtn')?.addEventListener('click', runTerminalCommand);
     document.getElementById('terminalClearBtn')?.addEventListener('click', clearTerminalOutput);
     document.getElementById('terminalCopyBtn')?.addEventListener('click', copyTerminalOutput);
+    document.getElementById('terminalHomeBtn')?.addEventListener('click', resetTerminalCwd);
     terminalInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         runTerminalCommand();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        clearTerminalOutput();
       } else if (e.key === 'ArrowUp') {
         const command = getTerminalHistory(-1);
         if (command !== null) {
@@ -3888,6 +3904,8 @@ function setTerminalStatus(text, tone = '') {
   if (!el) return;
   el.textContent = text;
   el.dataset.tone = tone;
+  const pill = el.closest('.terminal-status-pill');
+  if (pill) pill.dataset.tone = tone;
 }
 
 function setTerminalBusy(busy) {
@@ -3895,6 +3913,27 @@ function setTerminalBusy(busy) {
   setControlBusy(document.getElementById('terminalRunBtn'), busy, '运行中…');
   const input = document.getElementById('terminalInput');
   if (input) input.disabled = Boolean(busy);
+}
+
+function normalizeTerminalCwd(cwd) {
+  const value = String(cwd || '').trim();
+  return value || '~';
+}
+
+function syncTerminalCwdLabel(cwd = controlUiState.terminalCwd) {
+  const display = normalizeTerminalCwd(cwd);
+  controlUiState.terminalCwd = display;
+  const cwdEl = document.getElementById('terminalCwd');
+  const promptEl = document.getElementById('terminalPromptCwd');
+  if (cwdEl) cwdEl.textContent = display;
+  if (promptEl) promptEl.textContent = display;
+}
+
+function resetTerminalCwd() {
+  syncTerminalCwdLabel('~');
+  appendTerminalEntry('meta', 'cwd reset to home');
+  setTerminalStatus('已回到 Home', 'ok');
+  document.getElementById('terminalInput')?.focus?.({ preventScroll: true });
 }
 
 function addTerminalHistory(command) {
@@ -3968,13 +4007,23 @@ async function runTerminalCommand() {
   const command = input.value.trim();
   if (!command) return;
 
-  appendTerminalEntry('command', `<span class="terminal-prefix">\$</span> ${escHtml(command)}`);
+  if (command === 'clear') {
+    clearTerminalOutput();
+    input.value = '';
+    return;
+  }
+
+  const cwdBeforeRun = normalizeTerminalCwd(controlUiState.terminalCwd);
+  appendTerminalEntry('command', `<span class="terminal-prefix">${escHtml(cwdBeforeRun)} $</span> ${escHtml(command)}`);
   addTerminalHistory(command);
   input.value = '';
   setTerminalBusy(true);
   setTerminalStatus('运行中…', 'loading');
   const started = performance.now();
-  const res = await ctrlPost('/control/terminal/run', { command });
+  const res = await ctrlPost('/control/terminal/run', {
+    command,
+    cwd: cwdBeforeRun === '~' ? '' : cwdBeforeRun,
+  });
   const elapsed = ((performance.now() - started) / 1000).toFixed(1);
   if (!res) {
     appendTerminalEntry('error', '命令运行失败。');
@@ -3985,6 +4034,7 @@ async function runTerminalCommand() {
   }
   if (res.stdout) appendTerminalEntry('output', escHtml(res.stdout).replace(/\n/g, '<br>'));
   if (res.stderr) appendTerminalEntry('error', escHtml(res.stderr).replace(/\n/g, '<br>'));
+  if (res.cwd) syncTerminalCwdLabel(res.cwd);
   const code = res.code ?? 0;
   appendTerminalEntry('meta', `exit ${escHtml(String(code))} · ${elapsed}s`);
   setTerminalStatus(`退出码 ${code} · ${elapsed}s`, Number(code) === 0 ? 'ok' : 'error');

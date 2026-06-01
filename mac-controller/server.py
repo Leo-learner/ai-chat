@@ -7,6 +7,8 @@ brew install brightness blueutil
 
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
+import os
+import shlex
 import subprocess, psutil, threading, time, re
 
 app = Flask(__name__)
@@ -172,25 +174,75 @@ DANGEROUS_PATTERNS = [
 
 # ─────────────────────────────────────────── Terminal
 
+HOME_DIR = os.path.expanduser('~')
+
+
+def resolve_terminal_cwd(value):
+    raw = (value or '').strip()
+    if not raw or raw == '~':
+        return HOME_DIR
+    expanded = os.path.abspath(os.path.expanduser(raw))
+    return expanded if os.path.isdir(expanded) else HOME_DIR
+
+
+def display_terminal_cwd(path):
+    resolved = os.path.abspath(os.path.expanduser(path or HOME_DIR))
+    if resolved == HOME_DIR:
+        return '~'
+    if resolved.startswith(HOME_DIR + os.sep):
+        return '~' + resolved[len(HOME_DIR):]
+    return resolved
+
+
+def parse_cd_target(command):
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return None
+    if not parts or parts[0] != 'cd' or len(parts) > 2:
+        return None
+    return parts[1] if len(parts) == 2 else '~'
+
 @app.route('/api/terminal/run', methods=['POST'])
 def run_terminal():
-    command = (request.json.get('command', '') or '').strip()
+    payload = request.json or {}
+    command = (payload.get('command', '') or '').strip()
+    cwd = resolve_terminal_cwd(payload.get('cwd'))
     if not command:
-        return jsonify({'ok': False, 'error': 'Command is required', 'stdout': '', 'stderr': '', 'code': 1}), 400
+        return jsonify({
+            'ok': False, 'error': 'Command is required', 'stdout': '', 'stderr': '',
+            'code': 1, 'cwd': display_terminal_cwd(cwd)
+        }), 400
 
     # Blacklist check
     for pattern in DANGEROUS_PATTERNS:
         if re.search(pattern, command):
             return jsonify({
                 'ok': False, 'stdout': '', 'stderr': f'Blocked by safety rule (dangerous pattern detected).',
-                'code': 127
+                'code': 127, 'cwd': display_terminal_cwd(cwd)
             }), 200
+
+    cd_target = parse_cd_target(command)
+    if cd_target is not None:
+        next_cwd = os.path.abspath(os.path.expanduser(
+            cd_target if cd_target.startswith('/') else os.path.join(cwd, cd_target)
+        ))
+        if os.path.isdir(next_cwd):
+            return jsonify({
+                'ok': True, 'stdout': display_terminal_cwd(next_cwd), 'stderr': '',
+                'code': 0, 'cwd': display_terminal_cwd(next_cwd)
+            })
+        return jsonify({
+            'ok': False, 'stdout': '', 'stderr': f'cd: no such directory: {cd_target}',
+            'code': 1, 'cwd': display_terminal_cwd(cwd)
+        }), 200
 
     proc = None
     try:
         proc = subprocess.Popen(
             command,
             shell=True,
+            cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -200,13 +252,17 @@ def run_terminal():
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
-            return jsonify({'ok': False, 'stdout': '', 'stderr': 'Command timed out after 20 seconds', 'code': 124}), 200
+            return jsonify({
+                'ok': False, 'stdout': '', 'stderr': 'Command timed out after 20 seconds',
+                'code': 124, 'cwd': display_terminal_cwd(cwd)
+            }), 200
 
         return jsonify({
             'ok': proc.returncode == 0,
             'stdout': stdout.strip(),
             'stderr': stderr.strip(),
             'code': proc.returncode,
+            'cwd': display_terminal_cwd(cwd),
         })
     except Exception as e:
         if proc:
@@ -215,7 +271,10 @@ def run_terminal():
                 proc.wait()
             except Exception:
                 pass
-        return jsonify({'ok': False, 'stdout': '', 'stderr': str(e), 'code': 1}), 200
+        return jsonify({
+            'ok': False, 'stdout': '', 'stderr': str(e), 'code': 1,
+            'cwd': display_terminal_cwd(cwd)
+        }), 200
 
 
 # ─────────────────────────────────────────── Bluetooth

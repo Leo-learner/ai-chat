@@ -157,6 +157,7 @@
             <button class="tab-btn active" data-tab="chat" type="button">对话</button>
             <button class="tab-btn" data-tab="memory" type="button">记忆</button>
             <button class="tab-btn" data-tab="control" type="button">控制</button>
+            <button class="tab-btn" data-tab="terminal" type="button">终端</button>
             <button class="tab-btn" data-tab="finder" type="button">文件</button>
           </nav>
 
@@ -283,31 +284,6 @@
                 <section class="control-section">
                   <div class="section-head">
                     <div>
-                      <div class="section-kicker">Terminal</div>
-                      <h3>终端</h3>
-                    </div>
-                  </div>
-                  <div class="ctrl-card ctrl-card-full terminal-card">
-                    <div class="terminal-bar">
-                      <input type="text" id="terminalInput" class="terminal-input" placeholder="输入命令…" autocomplete="off" autocapitalize="off" spellcheck="false">
-                      <div class="terminal-actions">
-                        <button id="terminalRunBtn" class="btn btn-ctrl terminal-run-btn" type="button">运行</button>
-                        <button id="terminalCopyBtn" class="btn btn-ctrl-ghost terminal-copy-btn" type="button">复制输出</button>
-                        <button id="terminalClearBtn" class="btn btn-ctrl-ghost terminal-clear-btn" type="button">清空</button>
-                      </div>
-                    </div>
-                    <div class="terminal-meta-row">
-                      <span id="terminalStatus">待命</span>
-                    </div>
-                    <div id="terminalOutput" class="terminal-output" aria-live="polite">
-                      <div class="terminal-empty">暂无命令输出。</div>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="control-section">
-                  <div class="section-head">
-                    <div>
                       <div class="section-kicker">Device status</div>
                       <h3>内存与蓝牙</h3>
                     </div>
@@ -386,6 +362,46 @@
                   </div>
                 </section>
               </div>
+            </div>
+            <div id="tabTerminal" class="hidden terminal-page">
+              <div class="terminal-page-head">
+                <div class="terminal-title-block">
+                  <div class="control-kicker">Remote terminal</div>
+                  <h2>终端</h2>
+                  <p>像在电脑终端里一样运行命令、查看输出、切换目录和复制结果。</p>
+                </div>
+                <div class="terminal-status-pill" aria-live="polite">
+                  <span class="terminal-live-dot"></span>
+                  <span id="terminalStatus">待命</span>
+                </div>
+              </div>
+
+              <section class="terminal-workbench" aria-label="远程终端">
+                <div class="terminal-toolbar">
+                  <div class="terminal-cwd-chip">
+                    <span>当前目录</span>
+                    <strong id="terminalCwd">~</strong>
+                  </div>
+                  <div class="terminal-actions">
+                    <button id="terminalHomeBtn" class="btn btn-ctrl-ghost terminal-home-btn" type="button">Home</button>
+                    <button id="terminalCopyBtn" class="btn btn-ctrl-ghost terminal-copy-btn" type="button">复制输出</button>
+                    <button id="terminalClearBtn" class="btn btn-ctrl-ghost terminal-clear-btn" type="button">清空</button>
+                  </div>
+                </div>
+
+                <div id="terminalOutput" class="terminal-output terminal-screen" aria-live="polite">
+                  <div class="terminal-empty">暂无命令输出。</div>
+                </div>
+
+                <div class="terminal-prompt-row">
+                  <div class="terminal-prompt-label">
+                    <span id="terminalPromptCwd">~</span>
+                    <span>$</span>
+                  </div>
+                  <input type="text" id="terminalInput" class="terminal-input" placeholder="输入命令…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text">
+                  <button id="terminalRunBtn" class="btn btn-ctrl terminal-run-btn" type="button">运行</button>
+                </div>
+              </section>
             </div>
             <div id="tabFinder" class="hidden finder-page">
               <div class="finder-page-head">
@@ -502,6 +518,7 @@
           <button class="mobile-more-item" type="button" data-mobile-tab="chat">对话</button>
           <button class="mobile-more-item" type="button" data-mobile-tab="memory">记忆</button>
           <button class="mobile-more-item" type="button" data-mobile-tab="control">控制</button>
+          <button class="mobile-more-item" type="button" data-mobile-tab="terminal">终端</button>
           <button class="mobile-more-item" type="button" data-mobile-tab="finder">文件</button>
         </div>
       </div>

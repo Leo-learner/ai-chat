@@ -5646,14 +5646,13 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   grid-row: 1;
 }
 
-#tabControl .control-section:nth-child(3) {
+#tabControl .control-section:nth-child(2) {
   grid-column: 2;
   grid-row: 1;
 }
 
-#tabControl .control-section:nth-child(2),
-#tabControl .control-section:nth-child(4),
-#tabControl .control-section:nth-child(5) {
+#tabControl .control-section:nth-child(3),
+#tabControl .control-section:nth-child(4) {
   grid-column: 1 / -1;
 }
 
@@ -10954,5 +10953,330 @@ html[data-theme="light"] body.client-macos #chatView #sidebar,
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: .001ms !important;
+  }
+}
+
+/* ---------- Remote Terminal Standalone Board ---------- */
+#tabTerminal {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 16px;
+}
+
+#tabTerminal.hidden { display: none; }
+
+.terminal-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+}
+
+.terminal-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, .075);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .035));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .18), inset 0 1px 0 rgba(255, 255, 255, .06);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+
+.terminal-title-block h2 {
+  margin: 2px 0 0;
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.terminal-title-block p {
+  margin: 6px 0 0;
+  color: var(--subtext);
+  font-size: 13px;
+}
+
+.terminal-status-pill,
+.terminal-cwd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid rgba(139, 233, 192, .18);
+  border-radius: 999px;
+  background: rgba(139, 233, 192, .08);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.terminal-status-pill[data-tone="loading"] {
+  border-color: rgba(122, 167, 255, .28);
+  background: rgba(122, 167, 255, .10);
+}
+
+.terminal-status-pill[data-tone="error"] {
+  border-color: rgba(255, 142, 142, .28);
+  background: rgba(255, 142, 142, .10);
+}
+
+.terminal-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 5px rgba(139, 233, 192, .10);
+}
+
+.terminal-workbench {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, .075);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(139, 233, 192, .08), transparent 30%),
+    linear-gradient(180deg, rgba(8, 13, 21, .84), rgba(4, 7, 12, .90));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .055);
+  overflow: hidden;
+}
+
+.terminal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.terminal-cwd-chip {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--subtext);
+}
+
+.terminal-cwd-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, monospace;
+}
+
+#tabTerminal .terminal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+#tabTerminal .terminal-actions .btn {
+  min-height: 36px;
+  width: auto;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.terminal-screen {
+  min-height: 0;
+  max-height: none !important;
+  height: 100%;
+  padding: 16px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.terminal-prompt-row {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .052);
+}
+
+.terminal-prompt-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+#terminalPromptCwd {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#tabTerminal .terminal-input {
+  min-height: 42px;
+  padding-inline: 12px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, .22);
+  box-shadow: none;
+}
+
+#tabTerminal .terminal-input:focus {
+  background: rgba(0, 0, 0, .28);
+  box-shadow: 0 0 0 3px rgba(139, 233, 192, .10);
+}
+
+#tabTerminal .terminal-run-btn {
+  min-width: 78px;
+  min-height: 42px;
+  border-radius: 999px;
+  font-weight: 850;
+}
+
+.terminal-line { word-break: break-word; }
+.terminal-line + .terminal-line { margin-top: 6px; }
+.terminal-prefix { color: var(--accent); font-weight: 850; }
+.terminal-line-command { color: #e9fff7; }
+.terminal-line-output { color: rgba(230, 238, 247, .92); }
+.terminal-line-error { color: #ffb7b7; }
+.terminal-line-meta { color: rgba(175, 188, 204, .72); font-size: 11.5px; }
+
+html[data-theme="light"] #chatView .terminal-page-head,
+html[data-theme="light"] #chatView .terminal-workbench {
+  border-color: rgba(25, 34, 48, .10);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(28, 171, 122, .10), transparent 32%),
+    rgba(255, 255, 255, .82);
+  box-shadow: 0 20px 58px rgba(30, 40, 60, .10), inset 0 1px 0 rgba(255, 255, 255, .75);
+}
+
+html[data-theme="light"] #chatView .terminal-screen {
+  background: rgba(246, 249, 253, .88);
+  color: #17202c;
+}
+
+html[data-theme="light"] #chatView .terminal-prompt-row,
+html[data-theme="light"] #chatView #tabTerminal .terminal-input {
+  border-color: rgba(25, 34, 48, .10);
+  background: rgba(255, 255, 255, .74);
+  color: #15202c;
+}
+
+html[data-theme="light"] #chatView .terminal-line-command { color: #103e32; }
+html[data-theme="light"] #chatView .terminal-line-output { color: #17202c; }
+html[data-theme="light"] #chatView .terminal-line-meta { color: rgba(67, 81, 103, .74); }
+
+@media (max-width: 720px) {
+  body.mobile-web-mode #chatView[data-active-tab="terminal"] #main .main-frame {
+    padding-bottom: 0;
+  }
+
+  body.mobile-web-mode #chatView #tabTerminal {
+    padding: calc(54px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  body.mobile-web-mode #chatView .terminal-page-head {
+    padding: 10px 11px;
+    border-radius: 22px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-title-block h2 {
+    font-size: 23px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-title-block p {
+    display: none;
+  }
+
+  body.mobile-web-mode #chatView .terminal-status-pill {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-workbench {
+    min-height: 0;
+    padding: 9px;
+    border-radius: 23px;
+    gap: 8px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  body.mobile-web-mode #chatView #tabTerminal .terminal-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body.mobile-web-mode #chatView .terminal-screen {
+    padding: 12px;
+    border-radius: 18px;
+    font-size: 12px;
+    line-height: 1.58;
+  }
+
+  body.mobile-web-mode #chatView .terminal-prompt-row {
+    grid-template-columns: 1fr auto;
+    padding: 7px;
+    border-radius: 20px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-prompt-label {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-inline: 6px;
+  }
+
+  body.mobile-web-mode #chatView #terminalPromptCwd {
+    max-width: min(72vw, 310px);
+  }
+
+  body.mobile-web-mode #chatView #tabTerminal .terminal-input {
+    min-height: 42px;
+    font-size: 16px;
+  }
+
+  body.mobile-web-mode #chatView #tabTerminal .terminal-run-btn {
+    width: 54px;
+    min-width: 54px;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 430px) and (min-height: 800px) {
+  body.mobile-web-mode #chatView #tabTerminal {
+    padding-inline: 8px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-page {
+    gap: 8px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-page-head {
+    min-height: 54px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-workbench {
+    border-radius: 22px;
+  }
+
+  body.mobile-web-mode #chatView .terminal-screen {
+    font-size: 11.75px;
   }
 }
