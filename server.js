@@ -434,7 +434,7 @@ async function buildUserMemoryContext(userId, prompt, history = []) {
       queryChars: query.length,
     };
   } catch (err) {
-    req.log.warn('Memory retrieval skipped:', err.message || err);
+    rootLogger.warn('Memory retrieval skipped:', err.message || err);
     return { context: '', count: 0, queryChars: 0 };
   }
 }

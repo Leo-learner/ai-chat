@@ -67,25 +67,46 @@ node server.js &
 SERVER_PID=$!
 
 # Wait for server
-sleep 1
+SERVER_READY=0
+for i in {1..30}; do
+  if curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+    SERVER_READY=1
+    break
+  fi
+  sleep 0.5
+done
+
+if [ "$SERVER_READY" -ne 1 ]; then
+  echo ""
+  echo "❌ Server did not become ready on http://127.0.0.1:${PORT}"
+  echo "   ngrok was not started because it would show ERR_NGROK_8012."
+  kill $SERVER_PID 2>/dev/null || true
+  exit 1
+fi
 
 # Start ngrok
 if command -v ngrok &> /dev/null; then
   echo ""
   echo -e "${GREEN}🌐 Starting ngrok tunnel on port ${PORT}...${NC}"
 
-  NGROK_CMD="ngrok http ${PORT}"
+  NGROK_UPSTREAM="http://127.0.0.1:${PORT}"
+  NGROK_CMD="ngrok http ${NGROK_UPSTREAM}"
   if [ -n "$NGROK_AUTH_TOKEN" ]; then
     ngrok config add-authtoken "$NGROK_AUTH_TOKEN" 2>/dev/null || true
   fi
 
-  ngrok http ${PORT} --log=stdout > ngrok.log 2>&1 &
+  ngrok http "${NGROK_UPSTREAM}" --log=stdout > ngrok.log 2>&1 &
   NGROK_PID=$!
 
-  sleep 2
-
   # Get ngrok URL
-  NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o '"public_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+  NGROK_URL=""
+  for i in {1..20}; do
+    NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o '"public_url":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [ -n "$NGROK_URL" ]; then
+      break
+    fi
+    sleep 0.5
+  done
 
   if [ -n "$NGROK_URL" ]; then
     echo ""
