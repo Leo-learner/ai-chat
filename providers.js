@@ -12,25 +12,62 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_CHAT_MODEL = 'deepseek-v4-pro';
-const ALLOWED_CHAT_MODELS = [DEFAULT_CHAT_MODEL];
-const allowedChatModelSet = new Set(ALLOWED_CHAT_MODELS);
+const DEFAULT_CHAT_MODEL = process.env.DEFAULT_CHAT_MODEL || 'deepseek-v4-pro';
+
+function resolveEnvPlaceholders(value) {
+  if (typeof value === 'string') {
+    return value.replace(/\{(\w+)\}/g, (_, key) => process.env[key] || '');
+  }
+  if (Array.isArray(value)) return value.map(resolveEnvPlaceholders);
+  if (value && typeof value === 'object') {
+    const resolved = {};
+    for (const [key, child] of Object.entries(value)) {
+      const next = resolveEnvPlaceholders(child);
+      if (next === '') continue;
+      resolved[key] = next;
+    }
+    return Object.keys(resolved).length ? resolved : '';
+  }
+  return value;
+}
+
+function loadProviderConfigs() {
+  const raw = fs.readFileSync(path.join(__dirname, 'providers.json'), 'utf-8');
+  return JSON.parse(raw).map(resolveEnvPlaceholders);
+}
+
+function getAllowedChatModels() {
+  const models = [];
+  for (const cfg of loadProviderConfigs()) {
+    for (const model of cfg.models || []) {
+      if (model && !models.includes(model)) models.push(model);
+    }
+  }
+  return models.length ? models : [DEFAULT_CHAT_MODEL];
+}
 
 function normalizeChatModel(modelId) {
-  return allowedChatModelSet.has(modelId) ? modelId : DEFAULT_CHAT_MODEL;
+  const allowed = getAllowedChatModels();
+  if (allowed.includes(modelId)) return modelId;
+  if (allowed.includes(DEFAULT_CHAT_MODEL)) return DEFAULT_CHAT_MODEL;
+  return allowed[0] || DEFAULT_CHAT_MODEL;
+}
+
+function providerDefaultModel(provider) {
+  if (provider.defaultModel && provider.models?.includes(provider.defaultModel)) return provider.defaultModel;
+  return provider.models?.[0] || DEFAULT_CHAT_MODEL;
 }
 
 // ── Load & resolve providers ────────────────────────────
 function loadProviders() {
-  const raw = fs.readFileSync(path.join(__dirname, 'providers.json'), 'utf-8');
-  const configs = JSON.parse(raw);
+  const configs = loadProviderConfigs();
   const registry = {};
 
   for (const cfg of configs) {
-    const baseURL = (cfg.baseURL || '').replace(/\{(\w+)\}/g, (_, k) => process.env[k] || '');
-    const apiKey  = (cfg.apiKey || '').replace(/\{(\w+)\}/g, (_, k) => process.env[k] || '');
+    const baseURL = cfg.baseURL || '';
+    const apiKey = cfg.apiKey || '';
 
-    if (!apiKey) {
+    if (!apiKey || !baseURL) {
       registry[cfg.id] = { id: cfg.id, name: cfg.name, models: [], configured: false };
       continue;
     }
@@ -54,7 +91,7 @@ function getAllModels() {
     if (!p.configured || !p.models.length) continue;
     for (const model of p.models) {
       const normalized = normalizeChatModel(model);
-      if (!allowedChatModelSet.has(normalized) || models.some(m => m.id === normalized)) continue;
+      if (!normalized || models.some(m => m.id === normalized)) continue;
       models.push({ id: normalized, name: normalized, provider: pid, providerName: p.name });
     }
   }
@@ -62,31 +99,37 @@ function getAllModels() {
 }
 
 function getModelConfig(modelId) {
-  const useModel = normalizeChatModel(modelId);
+  const requestedModel = normalizeChatModel(modelId);
   const providers = loadProviders();
   for (const [pid, p] of Object.entries(providers)) {
     if (!p.configured) continue;
-    if (p.models.includes(useModel)) return { provider: p, providerId: pid, modelId: useModel };
+    if (p.models.includes(requestedModel)) return { provider: p, providerId: pid, modelId: requestedModel };
+  }
+
+  for (const [pid, p] of Object.entries(providers)) {
+    if (!p.configured || !p.models.length) continue;
+    const fallbackModel = providerDefaultModel(p);
+    return { provider: p, providerId: pid, modelId: fallbackModel };
   }
   return null;
 }
 
 // ── OpenAI-compatible streaming ─────────────────────────
 async function* streamOpenAI(provider, modelId, messages, options, signal) {
-  const url = `${provider.baseURL}/chat/completions`;
+  const url = `${provider.baseURL.replace(/\/+$/, '')}/chat/completions`;
   const defaultOptions = provider.defaultOptions && typeof provider.defaultOptions === 'object' ? provider.defaultOptions : {};
   const streamOptions = {
     include_usage: true,
     ...(defaultOptions.stream_options || {}),
     ...((options || {}).stream_options || {}),
   };
+  const useModel = normalizeChatModel(modelId);
   const body = {
     ...defaultOptions,
     ...(options || {}),
-    model: normalizeChatModel(modelId),
+    model: useModel,
     messages,
     stream: true,
-    thinking: { type: 'disabled' },
     stream_options: streamOptions,
   };
 
@@ -134,7 +177,7 @@ async function* streamOpenAI(provider, modelId, messages, options, signal) {
 
 // ── Ollama native streaming (with retry for 5xx) ────────
 async function* streamOllama(provider, modelId, messages, options, signal, retries = 2) {
-  const url = `${provider.baseURL}/api/chat`;
+  const url = `${provider.baseURL.replace(/\/+$/, '')}/api/chat`;
   const body = { ...options, model: normalizeChatModel(modelId), messages, stream: true };
 
   let lastError;
@@ -169,7 +212,6 @@ async function* streamOllama(provider, modelId, messages, options, signal, retri
 }
 
 async function* streamOllamaResponse(response) {
-
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -208,18 +250,18 @@ async function* streamChat(messages, modelId, options = {}) {
   const cfg = getModelConfig(useModel);
   if (!cfg) throw new Error(`Model "${useModel}" not available (not configured or missing API key)`);
 
-  const { provider } = cfg;
+  const { provider, modelId: resolvedModelId } = cfg;
   const { signal, ...requestOptions } = options || {};
   if (provider.type === 'ollama') {
-    yield* streamOllama(provider, useModel, messages, requestOptions, signal);
+    yield* streamOllama(provider, resolvedModelId, messages, requestOptions, signal);
   } else {
-    yield* streamOpenAI(provider, useModel, messages, requestOptions, signal);
+    yield* streamOpenAI(provider, resolvedModelId, messages, requestOptions, signal);
   }
 }
 
 module.exports = {
   DEFAULT_CHAT_MODEL,
-  ALLOWED_CHAT_MODELS,
+  getAllowedChatModels,
   normalizeChatModel,
   loadProviders,
   getAllModels,

@@ -1110,8 +1110,10 @@ app.post('/api/chats/:id/messages', authRequired, chatLimiter, async (req, res) 
 });
 
 // ── Mac Controller ──────────────────────────────────────
-const CONTROL_PORT = 5050;
-const CONTROL_URL = `http://localhost:${CONTROL_PORT}`;
+const CONTROL_PORT = Number(process.env.MAC_CONTROLLER_PORT || process.env.CONTROL_PORT || 5050);
+const CONTROL_HOST = process.env.MAC_CONTROLLER_HOST || '127.0.0.1';
+const CONTROL_PROXY_HOST = CONTROL_HOST === '0.0.0.0' ? '127.0.0.1' : CONTROL_HOST;
+const CONTROL_URL = process.env.CONTROL_URL || `http://${CONTROL_PROXY_HOST}:${CONTROL_PORT}`;
 const CONTROL_AUTO_START = process.env.CONTROL_AUTO_START !== 'false';
 
 // Start Python Mac Controller as child process
@@ -1139,7 +1141,7 @@ function startControlServer() {
     // Auto-restart on unexpected exit (non-zero, not intentionally killed)
     if (code !== 0) scheduleRestart(3000);
   });
-  rootLogger.info(`Mac Controller starting on port ${CONTROL_PORT}`);
+    rootLogger.info(`Mac Controller starting at ${CONTROL_URL}`);
 }
 
 // Serialized restart — prevents race between exit handler and health check
@@ -1161,7 +1163,9 @@ function startControlHealthCheck() {
   if (controlHealthTimer) clearInterval(controlHealthTimer);
   controlHealthTimer = setInterval(async () => {
     try {
-      const res = await fetch(`${CONTROL_URL}/api/volume`, { signal: AbortSignal.timeout(5000) });
+      const headers = {};
+      if (process.env.CONTROL_INTERNAL_TOKEN) headers['X-Internal-Token'] = process.env.CONTROL_INTERNAL_TOKEN;
+      const res = await fetch(`${CONTROL_URL}/api/volume`, { headers, signal: AbortSignal.timeout(5000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
       rootLogger.warn(`Control health check failed: ${err.message}`);

@@ -13006,3 +13006,47 @@ html[data-theme="light"] #chatView .messages-container {
     box-shadow: 0 22px 62px rgba(15, 23, 42, .16), inset 0 1px 0 rgba(255, 255, 255, .86);
   }
 }
+
+/* Sidebar drawer reliability patch.
+   The immersive global glass layer sets shared panels to position:relative.
+   On narrow screens that can collapse the chat sidebar drawer to a 2px strip,
+   leaving only the blurred backdrop visible after tapping the session list. */
+@media (max-width: 1080px) {
+  body:not(.client-macos) #chatView #sidebar {
+    position: fixed !important;
+    z-index: 120 !important;
+    left: clamp(8px, 2vw, 18px) !important;
+    top: clamp(8px, 2vw, 18px) !important;
+    right: auto !important;
+    bottom: clamp(8px, 2vw, 18px) !important;
+    width: min(360px, calc(100vw - 32px)) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    display: flex;
+    transform: translateX(calc(-100% - 36px)) !important;
+    transition: transform .22s ease;
+    will-change: transform;
+  }
+
+  body:not(.client-macos) #chatView #sidebar.mobile-open {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translateX(0) !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebarBackdrop.open {
+    z-index: 118 !important;
+  }
+}
+
+@media (max-width: 720px) {
+  body:not(.client-macos) #chatView #sidebar {
+    left: 8px !important;
+    top: 8px !important;
+    bottom: 8px !important;
+    width: min(90vw, 320px) !important;
+  }
+}

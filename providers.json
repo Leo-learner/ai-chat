@@ -7,11 +7,12 @@
       "deepseek-v4-pro"
     ],
     "defaultModel": "deepseek-v4-pro",
-    "baseURL": "https://api.deepseek.com",
+    "baseURL": "{DEEPSEEK_BASE_URL}",
     "apiKey": "{DEEPSEEK_API_KEY}",
     "defaultOptions": {
       "thinking": {
-        "type": "disabled"
+        "type": "{DEEPSEEK_THINKING_TYPE}",
+        "effort": "{DEEPSEEK_THINKING_EFFORT}"
       }
     }
   }

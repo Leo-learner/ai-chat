@@ -4,12 +4,15 @@ const { authRequired, adminOnly } = require('../auth');
 
 function createControlRouter({ controlUrl }) {
   const router = express.Router();
+  const internalToken = process.env.CONTROL_INTERNAL_TOKEN || '';
 
   async function controlProxy(method, endpoint, body) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000);
     try {
-      const opts = { method, headers: { 'Content-Type': 'application/json' }, signal: controller.signal };
+      const headers = { 'Content-Type': 'application/json' };
+      if (internalToken) headers['X-Internal-Token'] = internalToken;
+      const opts = { method, headers, signal: controller.signal };
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch(`${controlUrl}${endpoint}`, opts);
       const contentType = res.headers.get('content-type') || '';

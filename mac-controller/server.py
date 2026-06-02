@@ -9,11 +9,23 @@ from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO
 import os
 import shlex
-import subprocess, psutil, threading, time, re
+import subprocess, psutil, threading, time, re, secrets
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'mac-ctrl-2025'
+app.config['SECRET_KEY'] = os.environ.get('MAC_CONTROLLER_SECRET_KEY', 'mac-ctrl-2025')
 socketio = SocketIO(app, cors_allowed_origins='*', async_mode='threading')
+
+INTERNAL_TOKEN = os.environ.get('CONTROL_INTERNAL_TOKEN', '')
+
+
+@app.before_request
+def require_internal_token():
+    if not request.path.startswith('/api/') or not INTERNAL_TOKEN:
+        return None
+    provided = request.headers.get('X-Internal-Token', '')
+    if not secrets.compare_digest(provided, INTERNAL_TOKEN):
+        return jsonify({'error': 'Unauthorized control request'}), 401
+    return None
 
 
 def sh(cmd):
@@ -336,6 +348,8 @@ def index():
 
 if __name__ == '__main__':
     threading.Thread(target=memory_loop, daemon=True).start()
-    print('\n  ◆  Mac Controller  →  http://localhost:5050\n')
-    socketio.run(app, host='0.0.0.0', port=5050,
+    host = os.environ.get('MAC_CONTROLLER_HOST', '127.0.0.1')
+    port = int(os.environ.get('MAC_CONTROLLER_PORT', '5050'))
+    print(f'\n  ◆  Mac Controller  →  http://{host}:{port}\n')
+    socketio.run(app, host=host, port=port,
                  debug=False, allow_unsafe_werkzeug=True)
