@@ -55,6 +55,7 @@ const state = {
   webSearchAvailable: false,
   isMacOSClient: isMacOSAppMode,
   messageRenderExpanded: false,
+  chatListLoading: false,
   sidebarReturnFocus: null,
   moreReturnFocus: null,
   fileSheetReturnFocus: null,
@@ -688,7 +689,14 @@ function syncMobileWebMode() {
   const active = isMobileWebLayout();
   document.body?.classList.toggle('mobile-web-mode', active);
   dom.chatView?.toggleAttribute('data-mobile-web', active);
-  if (!active) closePromptAssistant({ returnFocus: false });
+  if (!active) {
+    closePromptAssistant({ returnFocus: false });
+    document.body?.classList.remove('mobile-composer-focus', 'message-action-sheet-open');
+  }
+}
+
+function syncMobileComposerFocus(focused) {
+  document.body?.classList.toggle('mobile-composer-focus', Boolean(focused && isMobileWebLayout() && state.activeTab === 'chat'));
 }
 
 function setElementSuppressed(el, suppressed) {
@@ -713,12 +721,94 @@ function closeMessageActionMenus(except = null) {
     if (menu === except) return;
     menu.classList.remove('open');
     menu.querySelector('[data-message-menu-toggle]')?.setAttribute('aria-expanded', 'false');
+    menu.querySelector('.message-action-popover')?.setAttribute('aria-hidden', 'true');
   });
+  document.body?.classList.toggle('message-action-sheet-open', Boolean(except?.classList?.contains('open')));
+}
+
+function setMessageActionMenuOpen(menu, open) {
+  if (!menu) return;
+  menu.classList.toggle('open', Boolean(open));
+  menu.querySelector('[data-message-menu-toggle]')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+  menu.querySelector('.message-action-popover')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+  document.body?.classList.toggle('message-action-sheet-open', Boolean(open));
+  if (open && isMobileWebLayout()) focusFirstInteractive(menu.querySelector('.message-action-popover'));
+}
+
+function closeMobileMessageActionSheet({ returnFocus = true } = {}) {
+  const sheet = document.getElementById('mobileMessageActionSheet');
+  const backdrop = document.getElementById('mobileMessageActionBackdrop');
+  const returnSelector = sheet?.dataset.returnSelector || '';
+  const returnTarget = returnSelector ? document.querySelector(returnSelector) : null;
+  returnTarget?.setAttribute('aria-expanded', 'false');
+  sheet?.remove();
+  backdrop?.remove();
+  document.body?.classList.remove('message-action-sheet-open');
+  if (returnFocus && returnSelector) {
+    returnTarget?.focus?.({ preventScroll: true });
+  }
+}
+
+function openMobileMessageActionSheet(messageEl, triggerBtn) {
+  if (!messageEl || !isMobileWebLayout()) return false;
+  const messageId = messageEl.dataset.messageId || '';
+  const msg = state.messages.find(m => String(m.id) === String(messageId));
+  if (!msg) return false;
+
+  closeMessageActionMenus();
+  closeMobileMessageActionSheet({ returnFocus: false });
+
+  const title = msg.role === 'assistant' ? 'AI 回答操作' : '我的消息操作';
+  const actions = msg.role === 'assistant'
+    ? [
+        ['copy', '复制', ''],
+        ['continue', '继续', ''],
+        ['regenerate', '重答', ' message-action-danger'],
+        ['save-memory', '保存记忆', ''],
+      ]
+    : [
+        ['copy', '复制', ''],
+        ['retry-user', '重发', ''],
+      ];
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'mobileMessageActionBackdrop';
+  backdrop.className = 'mobile-message-action-backdrop';
+  const sheet = document.createElement('div');
+  sheet.id = 'mobileMessageActionSheet';
+  sheet.className = 'mobile-message-action-sheet';
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  sheet.setAttribute('aria-label', title);
+  if (triggerBtn && messageId) {
+    const selector = `.message[data-message-id="${window.CSS && CSS.escape ? CSS.escape(messageId) : escapeAttr(messageId)}"] [data-message-menu-toggle]`;
+    sheet.dataset.returnSelector = selector;
+  }
+  sheet.innerHTML = `
+    <div class="message-action-sheet-head">
+      <span>${escapeHtml(title)}</span>
+      <span>轻点执行</span>
+    </div>
+    <div class="mobile-message-action-grid">
+      ${actions.map(([action, label, extraClass]) => `<button class="message-action${extraClass}" type="button" data-action="${escapeAttr(action)}" data-message-id="${escapeAttr(messageId)}">${escapeHtml(label)}</button>`).join('')}
+    </div>
+  `;
+  document.body.append(backdrop, sheet);
+  document.body?.classList.add('message-action-sheet-open');
+  triggerBtn?.setAttribute('aria-expanded', 'true');
+  backdrop.addEventListener('click', () => {
+    triggerBtn?.setAttribute('aria-expanded', 'false');
+    closeMobileMessageActionSheet();
+  });
+  focusFirstInteractive(sheet);
+  return true;
 }
 
 function openPromptAssistant() {
   if (!dom.promptQuickbar || !dom.promptAssistToggle || !isMobileWebLayout()) return;
   dom.promptQuickbar.classList.add('open');
+  dom.promptQuickbar.removeAttribute('inert');
+  dom.promptQuickbar.setAttribute('aria-hidden', 'false');
   dom.promptAssistToggle.classList.add('is-open');
   dom.promptAssistToggle.setAttribute('aria-expanded', 'true');
 }
@@ -727,6 +817,8 @@ function closePromptAssistant({ returnFocus = true } = {}) {
   if (!dom.promptQuickbar || !dom.promptAssistToggle) return;
   const wasOpen = dom.promptQuickbar.classList.contains('open');
   dom.promptQuickbar.classList.remove('open');
+  dom.promptQuickbar.setAttribute('aria-hidden', 'true');
+  dom.promptQuickbar.setAttribute('inert', '');
   dom.promptAssistToggle.classList.remove('is-open');
   dom.promptAssistToggle.setAttribute('aria-expanded', 'false');
   if (returnFocus && wasOpen) dom.promptAssistToggle.focus?.({ preventScroll: true });
@@ -775,11 +867,16 @@ function resetViewVisibility() {
   dom.chatView.classList.add('hidden');
 }
 
-function openSidebarOnMobile() {
+function openSidebarOnMobile({ refresh = true, resetSearch = false } = {}) {
   const sidebar = document.getElementById('sidebar');
+  if (resetSearch) {
+    state.chatSearchQuery = '';
+    if (dom.chatSearchInput) dom.chatSearchInput.value = '';
+  }
   if (state.isMacOSClient && !isMobileLayout()) {
     sidebar?.classList.remove('hidden');
     setElementSuppressed(sidebar, false);
+    if (refresh && state.token) loadChats({ showLoading: state.chats.length === 0, notifyError: true });
     dom.chatSearchInput?.focus?.({ preventScroll: true });
     dom.chatSearchInput?.select?.();
     return;
@@ -792,6 +889,7 @@ function openSidebarOnMobile() {
   dom.sidebarBackdrop?.classList.add('open');
   dom.sidebarBackdrop?.classList.remove('hidden');
   document.body.classList.add('sidebar-open');
+  if (refresh && state.token) loadChats({ showLoading: state.chats.length === 0, notifyError: true });
   focusFirstInteractive(sidebar);
 }
 
@@ -1089,10 +1187,15 @@ async function loadModels() {
   }
 }
 
-async function loadChats() {
+async function loadChats({ showLoading = false, notifyError = false } = {}) {
+  if (showLoading) {
+    state.chatListLoading = true;
+    renderChatList();
+  }
   try {
     const data = await API.get('/chats');
     state.chats = (data.chats || []).map(chat => ({ ...chat, model: normalizeChatModel(chat.model) }));
+    state.chatListLoading = false;
     renderChatList();
 
     if (state.currentChat) {
@@ -1109,7 +1212,10 @@ async function loadChats() {
       updateChatHeaderTitle();
     }
   } catch (err) {
+    state.chatListLoading = false;
+    renderChatList();
     console.error('Failed to load chats:', err);
+    if (notifyError) toast('会话列表加载失败');
   }
 }
 
@@ -1142,7 +1248,25 @@ function renderChatList() {
   const visibleChats = query
     ? state.chats.filter(chat => `${chat.title || ''} ${chatListMeta(chat)} ${chat.model || ''}`.toLowerCase().includes(query))
     : state.chats;
-  dom.chatSearchEmpty?.classList.toggle('hidden', visibleChats.length > 0 || !query);
+  dom.chatSearchEmpty?.classList.add('hidden');
+
+  if (state.chatListLoading) {
+    const loading = document.createElement('div');
+    loading.className = 'chat-list-state chat-list-loading';
+    loading.textContent = '正在加载会话…';
+    dom.chatList.appendChild(loading);
+    updateBatchUI();
+    return;
+  }
+
+  if (!visibleChats.length) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-list-state';
+    empty.textContent = query ? '没有匹配的会话' : '暂无会话，点“新对话”开始';
+    dom.chatList.appendChild(empty);
+    updateBatchUI();
+    return;
+  }
 
   for (const chat of visibleChats) {
     const item = document.createElement('div');
@@ -1491,6 +1615,7 @@ function normalizeSearchResults(results = []) {
 function renderContextStatusDetails(status) {
   const meta = normalizeContextStatus(status);
   if (!meta) return '';
+  const emptyContext = !meta.memoryUsed && !meta.webSearchUsed && !meta.summaryUsed;
   const memoryText = meta.memoryUsed ? `记忆 ${meta.memoryCount} 条` : '未使用记忆';
   const webText = meta.webSearchRequested
     ? (meta.webSearchUsed ? `联网 ${meta.webSearchCount} 条` : '联网无来源')
@@ -1499,7 +1624,7 @@ function renderContextStatusDetails(status) {
   const tailText = meta.tailCount ? `保留最近 ${meta.tailCount} 条消息` : '按当前上下文回答';
 
   return `
-    <details class="message-extra-panel message-context-panel">
+    <details class="message-extra-panel message-context-panel${emptyContext ? ' is-empty-context' : ''}">
       <summary>
         <span>上下文</span>
         <span class="message-extra-summary">${escapeHtml([memoryText, webText].join(' · '))}</span>
@@ -1575,11 +1700,15 @@ function createMessageElement(msg) {
 
   const secondaryActions = [];
   secondaryActions.push(`<button class="message-action message-action-mobile-only" type="button" data-action="copy">复制</button>`);
-  secondaryActions.push(`<button class="message-action" type="button" data-action="save-memory">保存记忆</button>`);
+  if (msg.role === 'user') {
+    secondaryActions.push(`<button class="message-action" type="button" data-action="retry-user">重发</button>`);
+  }
   if (msg.role === 'assistant') {
     secondaryActions.push(`<button class="message-action" type="button" data-action="continue">继续</button>`);
     secondaryActions.push(`<button class="message-action message-action-danger" type="button" data-action="regenerate">重答</button>`);
+    secondaryActions.push(`<button class="message-action" type="button" data-action="save-memory">保存记忆</button>`);
   }
+  const actionMenuTitle = msg.role === 'assistant' ? 'AI 回答操作' : '我的消息操作';
 
   wrap.innerHTML = `
     <div class="message-avatar">${escapeHtml(avatar)}</div>
@@ -1588,8 +1717,14 @@ function createMessageElement(msg) {
       <div class="message-actions">
         <button class="message-action" type="button" data-action="copy">复制</button>
         <div class="message-action-menu">
-          <button class="message-action message-action-more" type="button" data-message-menu-toggle aria-expanded="false">更多</button>
-          <div class="message-action-popover">${secondaryActions.join('')}</div>
+          <button class="message-action message-action-more" type="button" data-message-menu-toggle aria-expanded="false" aria-label="打开${escapeAttr(actionMenuTitle)}">操作</button>
+          <div class="message-action-popover" role="group" aria-label="${escapeAttr(actionMenuTitle)}" aria-hidden="true">
+            <div class="message-action-sheet-head">
+              <span>${escapeHtml(actionMenuTitle)}</span>
+              <span>轻点执行</span>
+            </div>
+            ${secondaryActions.join('')}
+          </div>
         </div>
       </div>
       ${renderMessageExtras(msg)}
@@ -1858,6 +1993,14 @@ function continueFromMessage(messageId) {
   const msg = state.messages.find(m => String(m.id) === String(messageId));
   if (!msg) return toast('找不到这条消息');
   applyPromptToInput('请继续上面的回答，保持同样的语气和结构，不要重复已经说过的内容。');
+}
+
+async function retryUserMessage(messageId) {
+  if (state.streaming) return toast('正在生成中');
+  const msg = state.messages.find(m => String(m.id) === String(messageId));
+  const content = msg?.role === 'user' ? String(msg.content || '').trim() : '';
+  if (!content) return toast('没有可重发的内容');
+  await sendPrompt(content, { clearInput: false });
 }
 
 function continueStoppedDraft() {
@@ -2280,6 +2423,45 @@ async function sendPrompt(content, { clearInput = true, mode = 'send', assistant
 
 async function sendMessage() {
   await sendPrompt(dom.messageInput.value.trim(), { clearInput: true });
+}
+
+async function runMessageAction(action, messageId, btn) {
+  if (action === 'continue-stopped') {
+    continueStoppedDraft();
+    return;
+  }
+  if (action === 'copy-stopped') {
+    if (!state.stoppedDraft?.content?.trim()) return toast('没有可复制的内容');
+    await copyMessageContent(state.stoppedDraft.content);
+    return;
+  }
+  if (action === 'retry-last') {
+    const prompt = state.stoppedDraft?.prompt || dom.messageInput?.value?.trim?.() || '';
+    if (!prompt) return toast('没有可重试的内容');
+    await sendPrompt(prompt, { clearInput: true });
+    return;
+  }
+  if (!messageId) return;
+  if (action === 'copy') {
+    await copyMessage(messageId);
+    const original = btn?.textContent;
+    if (btn) {
+      btn.textContent = '已复制';
+      btn.classList.add('is-success');
+      window.setTimeout(() => {
+        btn.textContent = original || '复制';
+        btn.classList.remove('is-success');
+      }, 1100);
+    }
+  } else if (action === 'retry-user') {
+    await retryUserMessage(messageId);
+  } else if (action === 'continue') {
+    continueFromMessage(messageId);
+  } else if (action === 'save-memory') {
+    await saveMessageAsMemory(messageId, btn);
+  } else if (action === 'regenerate') {
+    await regenerateFromAssistant(messageId);
+  }
 }
 
 async function newChat() {
@@ -2771,7 +2953,7 @@ function initEvents() {
     const actionBtn = e.target.closest('button[data-mobile-action]');
     if (actionBtn?.dataset.mobileAction === 'sidebar') {
       closeMobileMoreMenu();
-      openSidebarOnMobile();
+      openSidebarOnMobile({ refresh: true, resetSearch: true });
       return;
     }
     if (actionBtn?.dataset.mobileAction === 'new-chat') {
@@ -2898,6 +3080,10 @@ function initEvents() {
     resizeComposer();
     saveInputDraft();
   });
+  dom.inputArea?.addEventListener('focusin', () => syncMobileComposerFocus(true));
+  dom.inputArea?.addEventListener('focusout', () => {
+    window.setTimeout(() => syncMobileComposerFocus(dom.inputArea?.contains(document.activeElement)), 30);
+  });
 
   dom.promptQuickbar?.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-prompt-action]');
@@ -2959,10 +3145,11 @@ function initEvents() {
     const messageMenuBtn = e.target.closest('button[data-message-menu-toggle]');
     if (messageMenuBtn) {
       const menu = messageMenuBtn.closest('.message-action-menu');
+      const messageEl = messageMenuBtn.closest('.message');
+      if (openMobileMessageActionSheet(messageEl, messageMenuBtn)) return;
       const willOpen = !menu?.classList.contains('open');
       closeMessageActionMenus(menu);
-      menu?.classList.toggle('open', willOpen);
-      messageMenuBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      setMessageActionMenuOpen(menu, willOpen);
       return;
     }
 
@@ -2972,39 +3159,16 @@ function initEvents() {
     const messageEl = btn.closest('.message');
     const messageId = messageEl?.dataset.messageId;
     const action = btn.dataset.action;
+    await runMessageAction(action, messageId, btn);
+  });
 
-    if (action === 'continue-stopped') {
-      continueStoppedDraft();
-      return;
-    }
-    if (action === 'copy-stopped') {
-      if (!state.stoppedDraft?.content?.trim()) return toast('没有可复制的内容');
-      await copyMessageContent(state.stoppedDraft.content);
-      return;
-    }
-    if (action === 'retry-last') {
-      const prompt = state.stoppedDraft?.prompt || dom.messageInput?.value?.trim?.() || '';
-      if (!prompt) return toast('没有可重试的内容');
-      await sendPrompt(prompt, { clearInput: true });
-      return;
-    }
-    if (!messageId) return;
-    if (action === 'copy') {
-      await copyMessage(messageId);
-      const original = btn.textContent;
-      btn.textContent = '已复制';
-      btn.classList.add('is-success');
-      window.setTimeout(() => {
-        btn.textContent = original || '复制';
-        btn.classList.remove('is-success');
-      }, 1100);
-    } else if (action === 'continue') {
-      continueFromMessage(messageId);
-    } else if (action === 'save-memory') {
-      await saveMessageAsMemory(messageId, btn);
-    } else if (action === 'regenerate') {
-      await regenerateFromAssistant(messageId);
-    }
+  document.addEventListener('click', async (e) => {
+    const sheetBtn = e.target.closest('#mobileMessageActionSheet button[data-action]');
+    if (!sheetBtn) return;
+    const action = sheetBtn.dataset.action;
+    const messageId = sheetBtn.dataset.messageId;
+    closeMobileMessageActionSheet({ returnFocus: false });
+    await runMessageAction(action, messageId, sheetBtn);
   });
   dom.messagesContainer.addEventListener('scroll', () => syncScrollToBottomButton(), { passive: true });
   document.addEventListener('click', (e) => {
@@ -3023,6 +3187,7 @@ function initEvents() {
     if (handleMacOSClientShortcut(e)) return;
     if (e.key === 'Escape') {
       closeMessageActionMenus();
+      closeMobileMessageActionSheet({ returnFocus: false });
       closeMobileMoreMenu();
       closeSidebarOnMobile();
       closeModelSheet();
@@ -3646,6 +3811,11 @@ function setActiveTab(tab) {
   if (inputArea) inputArea.classList.toggle('hidden', tab !== 'chat');
   updateChatHeaderTitle();
   syncMobileMoreMenu();
+  if (tab !== 'chat') {
+    closePromptAssistant({ returnFocus: false });
+    closeMessageActionMenus();
+    syncMobileComposerFocus(false);
+  }
 
   if (tab === 'control') {
     refreshControlState();

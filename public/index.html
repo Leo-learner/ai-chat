@@ -134,7 +134,7 @@
         <div class="main-frame">
           <header class="main-header">
             <div class="main-title-block">
-              <button id="mobileMoreBtn" class="icon-btn mobile-only mobile-more-btn" type="button" title="更多" aria-label="更多" aria-controls="mobileMoreMenu" aria-expanded="false">⋯</button>
+              <button id="mobileMoreBtn" class="icon-btn mobile-only mobile-more-btn" type="button" title="菜单" aria-label="打开菜单" aria-controls="mobileMoreMenu" aria-expanded="false">⋯</button>
               <button id="mobileSidebarBtn" class="icon-btn mobile-only" type="button" title="Chats">☰</button>
               <div class="main-title-copy" id="mainTitleCopy">
                 <div class="main-kicker">conversation hub</div>
@@ -461,7 +461,7 @@
               </div>
               <span class="input-hint-inline desktop-only">Enter 发送 · Shift+Enter 换行</span>
             </div>
-            <div id="promptQuickbar" class="prompt-quickbar" aria-label="快捷提示">
+            <div id="promptQuickbar" class="prompt-quickbar" aria-label="输入助手快捷提示" aria-hidden="true" inert>
               <button class="prompt-chip" type="button" data-prompt-action="summarize">总结这段</button>
               <button class="prompt-chip" type="button" data-prompt-action="expand">继续展开</button>
               <button class="prompt-chip" type="button" data-prompt-action="rewrite">改写清楚</button>
@@ -472,7 +472,7 @@
                 <span class="prompt-assist-icon">✦</span>
                 <span class="prompt-assist-label">助手</span>
               </button>
-              <button id="webSearchToggle" class="web-search-toggle" type="button" aria-pressed="false" title="联网搜索未配置" disabled>
+              <button id="webSearchToggle" class="web-search-toggle hidden" type="button" aria-pressed="false" title="联网搜索未配置" disabled hidden>
                 <span class="web-search-icon">⌕</span>
                 <span class="web-search-label">联网</span>
               </button>
