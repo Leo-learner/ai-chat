@@ -13050,3 +13050,153 @@ html[data-theme="light"] #chatView .messages-container {
     width: min(90vw, 320px) !important;
   }
 }
+
+/* Mobile sidebar clarity patch.
+   Keep the drawer readable and interactive while the page behind it remains
+   blurred. The shared liquid-glass layer adds decoration and backdrop filters
+   broadly, which can make the sidebar content itself look blurred. */
+@media (max-width: 1080px) {
+  body:not(.client-macos).sidebar-open #chatView .shell {
+    isolation: auto !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar,
+  body:not(.client-macos) #chatView #sidebar * {
+    filter: none !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar {
+    isolation: isolate !important;
+    overflow: hidden !important;
+    color: var(--text) !important;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .025)),
+      rgba(10, 15, 24, .94) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar::before,
+  body:not(.client-macos) #chatView #sidebar::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar .sidebar-top,
+  body:not(.client-macos) #chatView #sidebar .sidebar-chats-wrap,
+  body:not(.client-macos) #chatView #sidebar .sidebar-footer,
+  body:not(.client-macos) #chatView #sidebar .chat-search-shell,
+  body:not(.client-macos) #chatView #sidebar .chat-search-input,
+  body:not(.client-macos) #chatView #sidebar .sidebar-section-label,
+  body:not(.client-macos) #chatView #sidebar .chat-item,
+  body:not(.client-macos) #chatView #sidebar .chat-item *,
+  body:not(.client-macos) #chatView #sidebar .batch-action-bar,
+  body:not(.client-macos) #chatView #sidebar .user-card,
+  body:not(.client-macos) #chatView #sidebar .icon-btn,
+  body:not(.client-macos) #chatView #sidebar .btn {
+    position: relative;
+    z-index: 2;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+    text-shadow: none !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar .sidebar-top,
+  body:not(.client-macos) #chatView #sidebar .sidebar-footer {
+    background: rgba(255, 255, 255, .045) !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar .sidebar-chats-wrap {
+    background: transparent !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar .chat-item,
+  body:not(.client-macos) #chatView #sidebar .user-card,
+  body:not(.client-macos) #chatView #sidebar .chat-search-input {
+    background: rgba(255, 255, 255, .075) !important;
+    border-color: rgba(255, 255, 255, .12) !important;
+    box-shadow: none !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar .chat-item.active {
+    background:
+      linear-gradient(135deg, rgba(139, 233, 192, .24), rgba(122, 167, 255, .18)),
+      rgba(255, 255, 255, .09) !important;
+    border-color: rgba(139, 233, 192, .34) !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar .chat-item-title,
+  body:not(.client-macos) #chatView #sidebar .user-name,
+  body:not(.client-macos) #chatView #sidebar h3 {
+    color: var(--text) !important;
+    opacity: 1 !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar .chat-item-model,
+  body:not(.client-macos) #chatView #sidebar .sidebar-kicker,
+  body:not(.client-macos) #chatView #sidebar .sidebar-section-label,
+  body:not(.client-macos) #chatView #sidebar .user-sub {
+    color: var(--subtext) !important;
+    opacity: 1 !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebar .chat-item-delete,
+  body:not(.client-macos) #chatView #sidebar .batch-select-btn,
+  body:not(.client-macos) #chatView #sidebar #logoutBtn {
+    pointer-events: auto !important;
+  }
+
+  body:not(.client-macos) #chatView #sidebarBackdrop.open {
+    backdrop-filter: blur(3px) saturate(1.02) !important;
+    -webkit-backdrop-filter: blur(3px) saturate(1.02) !important;
+  }
+}
+
+@media (max-width: 1080px) {
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar {
+    color: #0f172a !important;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(248, 251, 255, .90)),
+      rgba(255, 255, 255, .94) !important;
+    border-color: rgba(15, 23, 42, .12) !important;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .18) !important;
+  }
+
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .sidebar-top,
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .sidebar-footer {
+    background: rgba(15, 23, 42, .035) !important;
+    border-color: rgba(15, 23, 42, .09) !important;
+  }
+
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .chat-item,
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .user-card,
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .chat-search-input {
+    background: rgba(255, 255, 255, .82) !important;
+    border-color: rgba(15, 23, 42, .10) !important;
+  }
+
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .chat-item.active {
+    background:
+      linear-gradient(135deg, rgba(20, 184, 166, .20), rgba(59, 130, 246, .12)),
+      rgba(255, 255, 255, .88) !important;
+    border-color: rgba(15, 118, 110, .26) !important;
+  }
+
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .chat-item-title,
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .user-name,
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar h3 {
+    color: #0f172a !important;
+  }
+
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .chat-item-model,
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .sidebar-kicker,
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .sidebar-section-label,
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebar .user-sub {
+    color: rgba(15, 23, 42, .62) !important;
+  }
+
+  html[data-theme="light"] body:not(.client-macos) #chatView #sidebarBackdrop.open {
+    background: rgba(226, 232, 240, .40) !important;
+  }
+}
