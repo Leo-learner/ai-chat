@@ -11,15 +11,8 @@ if [ -f ".env" ]; then
 fi
 
 PORT="${PORT:-3000}"
-APP_ACCESS_TOKEN="${APP_ACCESS_TOKEN:-}"
-
-if [ -z "$APP_ACCESS_TOKEN" ]; then
-  echo "APP_ACCESS_TOKEN is required for health checks"
-  exit 1
-fi
 
 status="$(curl -s -o /tmp/ai-chat-cloud-lite-health.json -w "%{http_code}" \
-  -H "Authorization: Bearer ${APP_ACCESS_TOKEN}" \
   "http://127.0.0.1:${PORT}/api/health" || true)"
 
 if [ "$status" = "200" ]; then

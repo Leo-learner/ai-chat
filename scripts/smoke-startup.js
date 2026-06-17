@@ -12,7 +12,6 @@ const child = spawn(process.execPath, ['server.js'], {
   env: {
     ...process.env,
     PORT: String(port),
-    APP_ACCESS_TOKEN: process.env.APP_ACCESS_TOKEN || 'smoke-test-token',
     SERVE_DIST: process.env.SERVE_DIST || '0',
   },
   stdio: ['ignore', 'pipe', 'pipe'],

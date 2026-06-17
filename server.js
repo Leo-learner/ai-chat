@@ -15,25 +15,11 @@ const { estimateContextTokens, estimateMessagesTokens } = require('./lib/tokens'
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const APP_ACCESS_TOKEN = String(process.env.APP_ACCESS_TOKEN || '').trim();
 const CLOUD_USER_ID = 'cloud-lite-user';
 const DISABLED_ERROR = 'This feature is disabled in cloud-lite mode.';
 const rootLogger = createRootLogger();
 
-function maskToken(value = '') {
-  const text = String(value || '');
-  if (!text) return '';
-  if (text.length <= 8) return '****';
-  return `${text.slice(0, 4)}...${text.slice(-4)}`;
-}
-
 function assertRuntimeConfig() {
-  if (!APP_ACCESS_TOKEN) {
-    const message = 'APP_ACCESS_TOKEN is required for cloud-lite API access.';
-    if (IS_PRODUCTION) throw new Error(message);
-    rootLogger.warn(message);
-  }
   if (!process.env.OPENAI_API_KEY) {
     rootLogger.warn('OPENAI_API_KEY is not configured. Chat requests will fail until a provider key is set.');
   }
@@ -60,7 +46,7 @@ function ensureCloudUser() {
         CLOUD_USER_ID,
         'Cloud Lite',
         'cloud-lite@local',
-        'app-access-token',
+        'cloud-lite-local-user',
         'user'
       );
     } catch (err) {
@@ -69,24 +55,6 @@ function ensureCloudUser() {
     user = userQueries.findById.get(CLOUD_USER_ID);
   }
   return user;
-}
-
-function extractAccessToken(req) {
-  const header = String(req.headers.authorization || '');
-  if (header.startsWith('Bearer ')) return header.slice(7).trim();
-  return String(req.headers['x-app-access-token'] || '').trim();
-}
-
-function accessRequired(req, res, next) {
-  if (!APP_ACCESS_TOKEN) {
-    return res.status(503).json({ error: 'APP_ACCESS_TOKEN is not configured on the server.' });
-  }
-  const provided = extractAccessToken(req);
-  if (!provided || provided !== APP_ACCESS_TOKEN) {
-    return res.status(401).json({ error: 'Invalid or missing access token.' });
-  }
-  req.user = ensureCloudUser();
-  next();
 }
 
 function disabledFeature(_req, res) {
@@ -265,8 +233,10 @@ const chatLimiter = createRateLimiter({
 });
 
 app.use((req, res, next) => {
-  if (!req.path.startsWith('/api/')) return next();
-  accessRequired(req, res, next);
+  if (req.path.startsWith('/api/')) {
+    req.user = ensureCloudUser();
+  }
+  next();
 });
 
 app.use([
@@ -572,7 +542,6 @@ assertRuntimeConfig();
 ensureCloudUser();
 app.listen(PORT, () => {
   rootLogger.info(`Cloud-lite server running at http://localhost:${PORT}`);
-  rootLogger.info(`Access token: ${maskToken(APP_ACCESS_TOKEN) || 'not configured'}`);
   rootLogger.info(`Database: ${DB_PATH}`);
   const configured = getAllModels();
   rootLogger.info(`Models: ${configured.length}`);

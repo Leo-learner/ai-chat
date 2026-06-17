@@ -1,7 +1,6 @@
 (function () {
   'use strict';
 
-  const TOKEN_KEY = 'ai_chat_cloud_lite_token';
   const MODEL_KEY = 'ai_chat_cloud_lite_model';
   const API_TIMEOUT_MS = 25000;
 
@@ -9,7 +8,6 @@
   let allowedModels = [];
 
   const state = {
-    token: localStorage.getItem(TOKEN_KEY) || '',
     settings: null,
     models: [],
     conversations: [],
@@ -23,19 +21,15 @@
   };
 
   const dom = {
-    authView: document.getElementById('authView'),
     appView: document.getElementById('appView'),
-    accessForm: document.getElementById('accessForm'),
-    accessTokenInput: document.getElementById('accessTokenInput'),
-    accessError: document.getElementById('accessError'),
     sidebar: document.getElementById('sidebar'),
     sidebarBackdrop: document.getElementById('sidebarBackdrop'),
     sidebarToggleBtn: document.getElementById('sidebarToggleBtn'),
     newChatBtn: document.getElementById('newChatBtn'),
     emptyNewChatBtn: document.getElementById('emptyNewChatBtn'),
     historyNewChatBtn: document.getElementById('historyNewChatBtn'),
-    signOutBtn: document.getElementById('signOutBtn'),
-    settingsSignOutBtn: document.getElementById('settingsSignOutBtn'),
+    refreshAppBtn: document.getElementById('refreshAppBtn'),
+    settingsRefreshBtn: document.getElementById('settingsRefreshBtn'),
     conversationSearchInput: document.getElementById('conversationSearchInput'),
     conversationList: document.getElementById('conversationList'),
     historyList: document.getElementById('historyList'),
@@ -58,20 +52,7 @@
     navButtons: document.querySelectorAll('.nav-btn'),
   };
 
-  function showAuth(message = '') {
-    state.token = '';
-    localStorage.removeItem(TOKEN_KEY);
-    dom.authView.classList.remove('hidden');
-    dom.appView.classList.add('hidden');
-    if (message) {
-      dom.accessError.textContent = message;
-      dom.accessError.hidden = false;
-    }
-    setTimeout(() => dom.accessTokenInput.focus(), 40);
-  }
-
   function showApp() {
-    dom.authView.classList.add('hidden');
     dom.appView.classList.remove('hidden');
   }
 
@@ -95,7 +76,6 @@
   const API = {
     async request(method, path, body = null, { signal, timeoutMs = API_TIMEOUT_MS } = {}) {
       const headers = { 'Content-Type': 'application/json' };
-      if (state.token) headers.Authorization = `Bearer ${state.token}`;
       const opts = { method, headers };
       if (body !== null) opts.body = JSON.stringify(body);
 
@@ -108,8 +88,7 @@
         const type = res.headers.get('content-type') || '';
         const data = type.includes('application/json') ? await res.json() : { error: await res.text() };
         if (res.status === 401) {
-          showAuth('访问令牌无效或已过期');
-          throw new Error('访问令牌无效或已过期');
+          throw new Error('请求失败，请检查服务状态。');
         }
         if (!res.ok) throw new Error(data.error || '请求失败');
         return data;
@@ -479,14 +458,12 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${state.token}`,
         },
         body: JSON.stringify(body),
         signal: state.abortController.signal,
       });
       if (res.status === 401) {
-        showAuth('访问令牌无效或已过期');
-        throw new Error('访问令牌无效或已过期');
+        throw new Error('请求失败，请检查服务状态。');
       }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -609,17 +586,12 @@
     }, 160);
   }
 
-  function signOut() {
+  function refreshApp() {
     abortStream();
-    localStorage.removeItem(TOKEN_KEY);
-    state.conversations = [];
-    state.currentConversation = null;
-    state.messages = [];
-    showAuth();
+    window.location.reload();
   }
 
   async function bootstrap() {
-    if (!state.token) return showAuth();
     try {
       await loadSettings();
       await loadModels();
@@ -628,41 +600,17 @@
       setActiveTab('chat');
       setEmptyState(true);
     } catch (err) {
-      showAuth(err.message || '需要重新输入访问令牌');
+      showApp();
+      toast(err.message || '请求失败，请检查服务状态。');
     }
   }
 
   function bindEvents() {
-    dom.accessForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const token = dom.accessTokenInput.value.trim();
-      if (!token) {
-        dom.accessError.textContent = '请输入访问令牌';
-        dom.accessError.hidden = false;
-        return;
-      }
-      dom.accessError.hidden = true;
-      state.token = token;
-      try {
-        await loadSettings();
-        localStorage.setItem(TOKEN_KEY, token);
-        await loadModels();
-        await loadConversations();
-        showApp();
-        setActiveTab('chat');
-        setEmptyState(true);
-      } catch (err) {
-        state.token = '';
-        dom.accessError.textContent = err.message || '访问令牌无效';
-        dom.accessError.hidden = false;
-      }
-    });
-
     dom.newChatBtn.addEventListener('click', createConversation);
     dom.emptyNewChatBtn.addEventListener('click', createConversation);
     dom.historyNewChatBtn.addEventListener('click', createConversation);
-    dom.signOutBtn.addEventListener('click', signOut);
-    dom.settingsSignOutBtn.addEventListener('click', signOut);
+    dom.refreshAppBtn.addEventListener('click', refreshApp);
+    dom.settingsRefreshBtn.addEventListener('click', refreshApp);
     dom.sidebarToggleBtn.addEventListener('click', openSidebar);
     dom.sidebarBackdrop.addEventListener('click', closeSidebar);
     dom.conversationSearchInput.addEventListener('input', () => {

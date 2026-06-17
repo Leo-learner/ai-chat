@@ -18,12 +18,16 @@ Copy `.env.example` to `.env` and set:
 OPENAI_API_KEY=
 OPENAI_BASE_URL=https://api.openai.com/v1
 DEFAULT_MODEL=gpt-4o-mini
-APP_ACCESS_TOKEN=
 PORT=3000
 NODE_ENV=production
+MEMORY_ENABLED=false
+TERMINAL_ENABLED=false
+CONTROL_ENABLED=false
+MCP_ENABLED=false
+FILE_ACCESS_ENABLED=false
 ```
 
-`APP_ACCESS_TOKEN` is required for every API request. Do not put `OPENAI_API_KEY` in frontend code.
+Do not put `OPENAI_API_KEY` in frontend code. The current build does not include login authentication; use it only on trusted networks, an internal network, behind reverse-proxy authentication, or on the local machine.
 
 ## Windows Server Start
 
@@ -33,7 +37,7 @@ npm run build
 npm start
 ```
 
-Open `http://127.0.0.1:3000` and enter `APP_ACCESS_TOKEN`.
+Open `http://127.0.0.1:3000`; the app loads directly into the chat interface.
 
 ## PM2
 

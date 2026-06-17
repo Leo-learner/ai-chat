@@ -9,9 +9,9 @@
     "prestart": "npm run build",
     "start": "node server.js",
     "dev": "SERVE_DIST=0 node --watch server.js",
-    "check": "node --check server.js && node --check providers.js && node --check public/app.js && node --check scripts/smoke-auth.js && node --check scripts/smoke-startup.js && node scripts/check-css.js",
+    "check": "node --check server.js && node --check providers.js && node --check public/app.js && node --check scripts/smoke-api.js && node --check scripts/smoke-startup.js && node scripts/check-css.js",
     "smoke:startup": "node scripts/smoke-startup.js",
-    "smoke:auth": "node scripts/smoke-auth.js"
+    "smoke:api": "node scripts/smoke-api.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.6.0",

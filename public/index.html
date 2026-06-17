@@ -15,26 +15,7 @@
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/highlight.min.js"></script>
 </head>
 <body>
-  <div id="authView" class="auth-view">
-    <section class="auth-panel" aria-labelledby="authTitle">
-      <div class="brand-row">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <div>
-          <p class="eyebrow">cloud-lite</p>
-          <h1 id="authTitle">AI Chat</h1>
-        </div>
-      </div>
-      <p class="auth-copy">输入云电脑访问令牌后使用聊天、历史会话、模型配置和打字练习。</p>
-      <form id="accessForm" class="access-form">
-        <label for="accessTokenInput">访问令牌</label>
-        <input id="accessTokenInput" type="password" autocomplete="current-password" placeholder="APP_ACCESS_TOKEN">
-        <button class="primary-btn" type="submit">进入</button>
-        <p id="accessError" class="form-error" hidden></p>
-      </form>
-    </section>
-  </div>
-
-  <div id="appView" class="app-view hidden">
+  <div id="appView" class="app-view">
     <aside class="sidebar" id="sidebar">
       <header class="sidebar-head">
         <div>
@@ -65,7 +46,7 @@
         </nav>
         <div class="topbar-actions">
           <select id="modelSelect" class="model-select" aria-label="选择模型"></select>
-          <button id="signOutBtn" class="ghost-btn" type="button">退出</button>
+          <button id="refreshAppBtn" class="ghost-btn" type="button">刷新</button>
         </div>
       </header>
 
@@ -186,9 +167,9 @@
             <p id="modelStatus" class="muted-text">读取中</p>
           </article>
           <article class="settings-section">
-            <h3>访问</h3>
-            <p class="muted-text">API 请求使用 `APP_ACCESS_TOKEN` 访问令牌校验，密钥只保存在服务器环境变量中。</p>
-            <button id="settingsSignOutBtn" class="danger-btn" type="button">清除本机令牌</button>
+            <h3>运行环境</h3>
+            <p class="muted-text">当前版本不包含登录鉴权，请只在可信网络、内网、反向代理鉴权或本机环境下使用。</p>
+            <button id="settingsRefreshBtn" class="ghost-btn" type="button">刷新页面</button>
           </article>
           <article class="settings-section">
             <h3>Cloud Lite 安全边界</h3>
