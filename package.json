@@ -1,7 +1,7 @@
 {
-  "name": "ai-chat",
+  "name": "ai-chat-cloud-lite",
   "version": "1.0.0",
-  "description": "Self-hosted AI chat website with multi-provider support",
+  "description": "Cloud-lite AI chat website for Windows Server cloud desktops",
   "license": "MIT",
   "main": "server.js",
   "scripts": {
@@ -14,14 +14,11 @@
     "smoke:auth": "node scripts/smoke-auth.js"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "gpt-tokenizer": "^3.4.0",
-    "iconv-lite": "^0.7.2",
-    "jsonwebtoken": "^9.0.2",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

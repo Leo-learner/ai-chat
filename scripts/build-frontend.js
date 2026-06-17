@@ -15,7 +15,7 @@ fs.mkdirSync(dist, { recursive: true });
 const start = Date.now();
 
 // 1. Minify JS
-const jsResult = esbuild.buildSync({
+esbuild.buildSync({
   entryPoints: [path.join(pub, 'app.js')],
   bundle: true,
   minify: true,
@@ -28,6 +28,22 @@ const jsIn = fs.statSync(path.join(pub, 'app.js')).size;
 const jsOut = fs.statSync(path.join(dist, 'app.min.js')).size;
 console.log(`JS: ${(jsIn / 1024).toFixed(0)}KB → ${(jsOut / 1024).toFixed(0)}KB (${((1 - jsOut / jsIn) * 100).toFixed(0)}% smaller)`);
 
+const stilltypePath = path.join(pub, 'stilltype.js');
+if (fs.existsSync(stilltypePath)) {
+  esbuild.buildSync({
+    entryPoints: [stilltypePath],
+    bundle: true,
+    minify: true,
+    target: 'es2020',
+    outfile: path.join(dist, 'stilltype.min.js'),
+    write: true,
+    format: 'iife',
+  });
+  const stilltypeIn = fs.statSync(stilltypePath).size;
+  const stilltypeOut = fs.statSync(path.join(dist, 'stilltype.min.js')).size;
+  console.log(`StillType JS: ${(stilltypeIn / 1024).toFixed(0)}KB → ${(stilltypeOut / 1024).toFixed(0)}KB (${((1 - stilltypeOut / stilltypeIn) * 100).toFixed(0)}% smaller)`);
+}
+
 // 2. Minify CSS
 const cssRaw = fs.readFileSync(path.join(pub, 'style.css'), 'utf-8');
 const cssMin = csso.minify(cssRaw, { restructure: false }).css;
@@ -39,6 +55,7 @@ console.log(`CSS: ${(cssIn / 1024).toFixed(0)}KB → ${(cssOut / 1024).toFixed(0
 // 3. Copy index.html with updated references
 let html = fs.readFileSync(path.join(pub, 'index.html'), 'utf-8');
 html = html.replace(/app\.js/g, 'dist/app.min.js');
+html = html.replace(/stilltype\.js/g, 'dist/stilltype.min.js');
 html = html.replace(/style\.css(\?[^"']*)?/g, 'dist/style.min.css');
 fs.writeFileSync(path.join(dist, 'index.html'), html);
 const htmlSize = fs.statSync(path.join(dist, 'index.html')).size;

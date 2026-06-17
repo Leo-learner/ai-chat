@@ -12,7 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_CHAT_MODEL = process.env.DEFAULT_CHAT_MODEL || 'deepseek-v4-pro';
+const DEFAULT_CHAT_MODEL = process.env.DEFAULT_MODEL || 'gpt-4o-mini';
 
 function resolveEnvPlaceholders(value) {
   if (typeof value === 'string') {
@@ -33,7 +33,17 @@ function resolveEnvPlaceholders(value) {
 
 function loadProviderConfigs() {
   const raw = fs.readFileSync(path.join(__dirname, 'providers.json'), 'utf-8');
-  return JSON.parse(raw).map(resolveEnvPlaceholders);
+  return JSON.parse(raw).map((cfg) => {
+    const resolved = resolveEnvPlaceholders(cfg);
+    const models = (resolved.models || [])
+      .map(model => String(model || '').trim())
+      .filter(Boolean);
+    return {
+      ...resolved,
+      models: models.length ? models : [DEFAULT_CHAT_MODEL],
+      defaultModel: String(resolved.defaultModel || '').trim() || DEFAULT_CHAT_MODEL,
+    };
+  });
 }
 
 function getAllowedChatModels() {
