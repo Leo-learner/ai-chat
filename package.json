@@ -4,14 +4,17 @@
   "description": "Self-hosted AI chat website with multi-provider support",
   "license": "MIT",
   "main": "server.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "build": "node scripts/build-frontend.js",
+    "build": "bash scripts/run-node-abi127.sh scripts/build-frontend.js",
     "prestart": "npm run build",
-    "start": "node server.js",
-    "dev": "SERVE_DIST=0 node --watch server.js",
-    "check": "node --check server.js && node --check providers.js && node --check public/app.js && node --check scripts/smoke-auth.js && node --check scripts/smoke-startup.js && node scripts/check-css.js",
-    "smoke:startup": "node scripts/smoke-startup.js",
-    "smoke:auth": "node scripts/smoke-auth.js"
+    "start": "bash scripts/run-node-abi127.sh server.js",
+    "dev": "SERVE_DIST=0 bash scripts/run-node-abi127.sh --watch server.js",
+    "check": "bash scripts/run-node-abi127.sh --check server.js && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check public/app.js && bash scripts/run-node-abi127.sh --check scripts/smoke-auth.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh scripts/check-css.js",
+    "smoke:startup": "bash scripts/run-node-abi127.sh scripts/smoke-startup.js",
+    "smoke:auth": "bash scripts/run-node-abi127.sh scripts/smoke-auth.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

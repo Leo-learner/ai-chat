@@ -25,6 +25,7 @@ data/
 *.log
 healthcheck.log
 ngrok.log
+nohup.out
 
 # Local backups and editor state
 *.bak

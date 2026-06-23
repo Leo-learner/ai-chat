@@ -11,6 +11,8 @@ set -e
 
 cd "$(dirname "$0")"
 
+source ./scripts/use-node-abi127.sh
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -23,11 +25,7 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 # Check Node.js
-if ! command -v node &> /dev/null; then
-  echo "❌ Node.js not found. Install from https://nodejs.org"
-  exit 1
-fi
-echo -e "${GREEN}✓${NC} Node.js $(node -v)"
+echo -e "${GREEN}✓${NC} Node.js $("$AI_CHAT_NODE_BIN" -v) (ABI $("$AI_CHAT_NODE_BIN" -p 'process.versions.modules'))"
 
 # Create .env if not exists
 if [ ! -f .env ]; then
@@ -50,20 +48,20 @@ PORT=${PORT:-3000}
 # Install deps
 if [ ! -d node_modules ]; then
   echo "📦 Installing dependencies..."
-  npm install
+  "$AI_CHAT_NPM_BIN" install
   echo ""
 fi
 
 # Build frontend assets (minify JS/CSS)
 if [ -f "scripts/build-frontend.js" ]; then
   echo "📦 Building frontend..."
-  node scripts/build-frontend.js
+  "$AI_CHAT_NODE_BIN" scripts/build-frontend.js
   echo ""
 fi
 
 # Start server in background
 echo -e "${GREEN}🚀 Starting server on port ${PORT}...${NC}"
-node server.js &
+"$AI_CHAT_NODE_BIN" server.js &
 SERVER_PID=$!
 
 # Wait for server

@@ -13,6 +13,11 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
+if ! source ./scripts/use-node-abi127.sh; then
+  log "Node.js ABI 127 runtime not found"
+  exit 1
+fi
+
 # Source PORT from .env
 source <(grep -v '^#' .env 2>/dev/null | grep -v '^$' | sed 's/^/export /')
 PORT=${PORT:-3000}
@@ -32,7 +37,7 @@ get_ngrok_url() {
 
 start_server() {
   log "Starting server on port ${PORT}..."
-  nohup node ./server.js > ./server.log 2>&1 &
+  nohup "$AI_CHAT_NODE_BIN" ./server.js > ./server.log 2>&1 &
   SERVER_PID=$!
   sleep 3
   if check_server; then

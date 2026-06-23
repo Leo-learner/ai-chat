@@ -1,5 +1,16 @@
 [
   {
+    "id": "nvidia",
+    "name": "NVIDIA (Kimi K2.6)",
+    "type": "openai",
+    "models": [
+      "moonshotai/kimi-k2.6"
+    ],
+    "defaultModel": "moonshotai/kimi-k2.6",
+    "baseURL": "{NVIDIA_BASE_URL}",
+    "apiKey": "{NVIDIA_API_KEY}"
+  },
+  {
     "id": "deepseek",
     "name": "DeepSeek",
     "type": "openai",

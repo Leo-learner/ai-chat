@@ -22,6 +22,8 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'Leo';
 const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const APP_MODE = process.env.APP_MODE || '';
+const IS_SERVER_CHAT_ONLY = APP_MODE === 'server-chat-only';
 const rootLogger = createRootLogger();
 
 // ── Middleware ──────────────────────────────────────────
@@ -624,6 +626,7 @@ app.get('/api/models', authRequired, (req, res) => {
   const models = getAllModels();
   res.json({
     models,
+    appMode: APP_MODE || null,
     webSearch: {
       enabled: isWebSearchAvailable(),
       provider: WEB_SEARCH_CONFIG.provider,
@@ -1114,7 +1117,7 @@ const CONTROL_PORT = Number(process.env.MAC_CONTROLLER_PORT || process.env.CONTR
 const CONTROL_HOST = process.env.MAC_CONTROLLER_HOST || '127.0.0.1';
 const CONTROL_PROXY_HOST = CONTROL_HOST === '0.0.0.0' ? '127.0.0.1' : CONTROL_HOST;
 const CONTROL_URL = process.env.CONTROL_URL || `http://${CONTROL_PROXY_HOST}:${CONTROL_PORT}`;
-const CONTROL_AUTO_START = process.env.CONTROL_AUTO_START !== 'false';
+const CONTROL_AUTO_START = !IS_SERVER_CHAT_ONLY && process.env.CONTROL_AUTO_START !== 'false';
 
 // Start Python Mac Controller as child process
 let controlProcess = null;
@@ -1175,13 +1178,23 @@ function startControlHealthCheck() {
   }, 30000);
 }
 
-// Control proxy — routes in ./routes/control.js
-const createControlRouter = require('./routes/control');
-app.use('/api/control', createControlRouter({ controlUrl: CONTROL_URL }));
+// ── Server-chat-only guards ─────────────────────────────
+if (IS_SERVER_CHAT_ONLY) {
+  app.use('/api/control', (req, res) => {
+    res.status(403).json({ error: 'Control is disabled in server-chat-only mode.' });
+  });
+  app.use('/api/finder', (req, res) => {
+    res.status(403).json({ error: 'Finder is disabled in server-chat-only mode.' });
+  });
+} else {
+  // Control proxy — routes in ./routes/control.js
+  const createControlRouter = require('./routes/control');
+  app.use('/api/control', createControlRouter({ controlUrl: CONTROL_URL }));
 
-// ── Finder / File Browser ──────────────────────────────
-const finderRoutes = require('./routes/finder');
-app.use('/api/finder', finderRoutes);
+  // ── Finder / File Browser ──────────────────────────────
+  const finderRoutes = require('./routes/finder');
+  app.use('/api/finder', finderRoutes);
+}
 
 // ── SPA fallback ────────────────────────────────────────
 app.get('*', (req, res) => {
@@ -1199,7 +1212,9 @@ app.listen(PORT, () => {
   const configured = Object.values(providers).filter(p => p.configured);
   rootLogger.info(`Providers: ${configured.map(p => p.name).join(', ') || 'none'}`);
   rootLogger.info(`Models: ${getAllModels().length}`);
-  rootLogger.info(`Finder root: ${finderRoutes.finderRoot || 'not configured'}`);
+  if (!IS_SERVER_CHAT_ONLY) {
+    rootLogger.info(`Finder root: ${finderRoutes.finderRoot || 'not configured'}`);
+  }
 
   if (CONTROL_AUTO_START) {
     startControlServer();

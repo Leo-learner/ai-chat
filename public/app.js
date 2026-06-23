@@ -16,8 +16,11 @@ document.body?.classList.toggle('app-mode', isAndroidAppMode);
 document.body?.classList.toggle('client-macos', isMacOSAppMode);
 if (isMacOSAppMode) document.documentElement.dataset.client = 'macos';
 
-const DEFAULT_CHAT_MODEL = 'deepseek-v4-pro';
-const ALLOWED_CHAT_MODELS = [DEFAULT_CHAT_MODEL];
+const DEFAULT_CHAT_MODEL = '';
+const ALLOWED_CHAT_MODELS = [];
+
+const APP_MODE_META = document.querySelector('meta[name="app-mode"]')?.content || '';
+const IS_SERVER_CHAT_ONLY = APP_MODE_META === 'server-chat-only';
 const API_DEFAULT_TIMEOUT_MS = 25000;
 const CHAT_DRAFT_STORAGE_PREFIX = 'ai_chat_draft:';
 const MESSAGE_RENDER_LIMIT = 60;
@@ -32,7 +35,9 @@ function getStoredThemePreference() {
 }
 
 function normalizeChatModel(modelId) {
-  return ALLOWED_CHAT_MODELS.includes(modelId) ? modelId : DEFAULT_CHAT_MODEL;
+  if (!modelId) return DEFAULT_CHAT_MODEL || (state.models[0]?.id || '');
+  if (!ALLOWED_CHAT_MODELS.length) return modelId; // no client-side filter — trust server
+  return ALLOWED_CHAT_MODELS.includes(modelId) ? modelId : (DEFAULT_CHAT_MODEL || ALLOWED_CHAT_MODELS[0]);
 }
 
 const state = {
@@ -103,6 +108,7 @@ const dom = {
   messagesContainer: document.getElementById('messagesContainer'),
   inputArea: document.getElementById('inputArea'),
   tabMemory: document.getElementById('tabMemory'),
+  tabStilltype: document.getElementById('tabStilltype'),
   memoryHealth: document.getElementById('memoryHealth'),
   memoryComposeToggle: document.getElementById('memoryComposeToggle'),
   memoryComposeBody: document.getElementById('memoryComposeBody'),
@@ -856,10 +862,13 @@ function isAdminUser() {
 }
 
 function canAccessTab(tab) {
+  if (IS_SERVER_CHAT_ONLY) {
+    return tab === 'chat';
+  }
   if (tab === 'control' || tab === 'finder' || tab === 'terminal') {
     return isAdminUser() && !state.isAppMode;
   }
-  return tab === 'chat' || tab === 'memory';
+  return tab === 'chat' || tab === 'memory' || tab === 'stilltype';
 }
 
 function resetViewVisibility() {
@@ -1063,11 +1072,15 @@ function currentModelText(modelId = dom.modelSelect.value) {
 }
 
 function firstAvailableModelId() {
+  if (!ALLOWED_CHAT_MODELS.length) {
+    return dom.modelSelect.options[0]?.value || DEFAULT_CHAT_MODEL || '';
+  }
   return Array.from(dom.modelSelect.options).find(opt => ALLOWED_CHAT_MODELS.includes(opt.value))?.value || DEFAULT_CHAT_MODEL;
 }
 
 function modelOptionExists(modelId) {
   if (!modelId) return false;
+  if (!ALLOWED_CHAT_MODELS.length) return Array.from(dom.modelSelect.options).some(opt => opt.value === modelId);
   return ALLOWED_CHAT_MODELS.includes(modelId) && Array.from(dom.modelSelect.options).some(opt => opt.value === modelId);
 }
 
@@ -1123,7 +1136,9 @@ function setSelectedModel(modelId) {
 
 function renderModelPickers(models) {
   const previousModel = normalizeChatModel(dom.modelSelect.value);
-  const allowedModels = (models || []).filter(model => ALLOWED_CHAT_MODELS.includes(model.id));
+  const allowedModels = ALLOWED_CHAT_MODELS.length
+    ? (models || []).filter(model => ALLOWED_CHAT_MODELS.includes(model.id))
+    : (models || []);
   dom.modelSelect.innerHTML = '';
   dom.emptyModels.innerHTML = '';
   dom.emptyModels.hidden = true;
@@ -1171,13 +1186,26 @@ function renderModelPickers(models) {
   }
 
   dom.modelSelect.disabled = true;
-  setSelectedModel(previousModel || state.currentChat?.model || DEFAULT_CHAT_MODEL);
+  setSelectedModel(previousModel || state.currentChat?.model || DEFAULT_CHAT_MODEL || state._defaultModel || '');
 }
 
 async function loadModels() {
   try {
     const data = await API.get('/models');
-    state.models = (data.models || []).filter(model => ALLOWED_CHAT_MODELS.includes(model.id));
+    const serverModels = data.models || [];
+    // Update allowed models from server (remove client-side hardcoded filter)
+    if (!ALLOWED_CHAT_MODELS.length) {
+      for (const m of serverModels) {
+        if (!ALLOWED_CHAT_MODELS.includes(m.id)) ALLOWED_CHAT_MODELS.push(m.id);
+      }
+    }
+    state.models = serverModels.filter(model =>
+      !ALLOWED_CHAT_MODELS.length || ALLOWED_CHAT_MODELS.includes(model.id)
+    );
+    if (!DEFAULT_CHAT_MODEL && state.models.length) {
+      // DEFAULT_CHAT_MODEL is const — update via state fallback
+      state._defaultModel = state.models[0].id;
+    }
     renderModelPickers(state.models);
     setWebSearchAvailability(Boolean(data.webSearch?.enabled));
   } catch (err) {
@@ -1239,7 +1267,7 @@ function chatListMeta(chat = {}) {
   if (ALLOWED_CHAT_MODELS.length === 1) {
     return formatRelativeChatTime(chat.updated_at || chat.created_at) || '单一模型';
   }
-  return normalizeChatModel(chat.model || DEFAULT_CHAT_MODEL);
+  return normalizeChatModel(chat.model || DEFAULT_CHAT_MODEL || state._defaultModel || '');
 }
 
 function renderChatList() {
@@ -1428,6 +1456,7 @@ function updateChatHeaderTitle() {
   const input = dom.chatTitleInput;
   const pageTitles = {
     memory: '记忆库',
+    stilltype: '打字练习',
     control: '控制台',
     terminal: '终端',
     finder: '文件',
@@ -3793,6 +3822,7 @@ function setActiveTab(tab) {
   state.activeTab = tab;
   const tabChat = document.getElementById('tabChat');
   const tabMemory = document.getElementById('tabMemory');
+  const tabStilltype = document.getElementById('tabStilltype');
   const tabControl = document.getElementById('tabControl');
   const tabTerminal = document.getElementById('tabTerminal');
   const tabFinder = document.getElementById('tabFinder');
@@ -3805,6 +3835,7 @@ function setActiveTab(tab) {
   buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
   if (tabChat) tabChat.classList.toggle('hidden', tab !== 'chat');
   if (tabMemory) tabMemory.classList.toggle('hidden', tab !== 'memory');
+  if (tabStilltype) tabStilltype.classList.toggle('hidden', tab !== 'stilltype');
   if (tabControl) tabControl.classList.toggle('hidden', tab !== 'control');
   if (tabTerminal) tabTerminal.classList.toggle('hidden', tab !== 'terminal');
   if (tabFinder) tabFinder.classList.toggle('hidden', tab !== 'finder');
@@ -3815,6 +3846,12 @@ function setActiveTab(tab) {
     closePromptAssistant({ returnFocus: false });
     closeMessageActionMenus();
     syncMobileComposerFocus(false);
+  }
+
+  if (tab === 'stilltype') {
+    window.StilltypePage?.activate?.();
+  } else {
+    window.StilltypePage?.deactivate?.();
   }
 
   if (tab === 'control') {
@@ -3852,6 +3889,7 @@ function initControlPanel() {
   const tabBtns = tabNav.querySelectorAll('.tab-btn');
   const tabChat = document.getElementById('tabChat');
   const tabMemory = document.getElementById('tabMemory');
+  const tabStilltype = document.getElementById('tabStilltype');
   const tabControl = document.getElementById('tabControl');
   const tabTerminal = document.getElementById('tabTerminal');
   const tabFinder = document.getElementById('tabFinder');
