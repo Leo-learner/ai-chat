@@ -21,6 +21,7 @@ const ALLOWED_CHAT_MODELS = [];
 
 const APP_MODE_META = document.querySelector('meta[name="app-mode"]')?.content || '';
 const IS_SERVER_CHAT_ONLY = APP_MODE_META === 'server-chat-only';
+document.body?.classList.toggle('server-chat-only', IS_SERVER_CHAT_ONLY);
 const API_DEFAULT_TIMEOUT_MS = 25000;
 const CHAT_DRAFT_STORAGE_PREFIX = 'ai_chat_draft:';
 const MESSAGE_RENDER_LIMIT = 60;
@@ -177,6 +178,7 @@ const dom = {
 
 function syncClientModeAttributes() {
   document.body?.classList.toggle('client-macos', state.isMacOSClient);
+  document.body?.classList.toggle('server-chat-only', IS_SERVER_CHAT_ONLY);
   if (state.isMacOSClient) {
     document.documentElement.dataset.client = 'macos';
     dom.chatView?.setAttribute('data-client', 'macos');
@@ -687,6 +689,12 @@ function isMobileLayout() {
   return window.matchMedia('(max-width: 720px)').matches;
 }
 
+function isServerChatDockedSidebar() {
+  return IS_SERVER_CHAT_ONLY
+    && !state.isMacOSClient
+    && !window.matchMedia('(max-width: 1080px)').matches;
+}
+
 function isMobileWebLayout() {
   return isMobileLayout() && !state.isAppMode && !state.isMacOSClient;
 }
@@ -876,11 +884,48 @@ function resetViewVisibility() {
   dom.chatView.classList.add('hidden');
 }
 
+function syncResponsiveSidebarState({ refresh = false } = {}) {
+  if (!IS_SERVER_CHAT_ONLY) return;
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  const docked = Boolean(state.token) && isServerChatDockedSidebar();
+  document.body?.classList.toggle('sidebar-docked', docked);
+
+  if (docked) {
+    sidebar.classList.remove('hidden', 'mobile-open', 'is-dragging-close');
+    sidebar.style.removeProperty('--sidebar-drag-offset');
+    setElementSuppressed(sidebar, false);
+    dom.sidebarBackdrop?.classList.add('hidden');
+    dom.sidebarBackdrop?.classList.remove('open');
+    setElementSuppressed(dom.sidebarBackdrop, true);
+    document.body.classList.remove('sidebar-open');
+    if (refresh && state.token) loadChats({ showLoading: state.chats.length === 0, notifyError: true });
+    return;
+  }
+
+  if (!sidebar.classList.contains('mobile-open')) {
+    sidebar.classList.add('hidden');
+    sidebar.classList.remove('is-dragging-close');
+    sidebar.style.removeProperty('--sidebar-drag-offset');
+    setElementSuppressed(sidebar, true);
+    dom.sidebarBackdrop?.classList.add('hidden');
+    dom.sidebarBackdrop?.classList.remove('open');
+    setElementSuppressed(dom.sidebarBackdrop, true);
+    document.body.classList.remove('sidebar-open', 'sidebar-docked');
+  }
+}
+
 function openSidebarOnMobile({ refresh = true, resetSearch = false } = {}) {
   const sidebar = document.getElementById('sidebar');
   if (resetSearch) {
     state.chatSearchQuery = '';
     if (dom.chatSearchInput) dom.chatSearchInput.value = '';
+  }
+  if (isServerChatDockedSidebar()) {
+    syncResponsiveSidebarState({ refresh });
+    dom.chatSearchInput?.focus?.({ preventScroll: true });
+    dom.chatSearchInput?.select?.();
+    return;
   }
   if (state.isMacOSClient && !isMobileLayout()) {
     sidebar?.classList.remove('hidden');
@@ -904,6 +949,10 @@ function openSidebarOnMobile({ refresh = true, resetSearch = false } = {}) {
 
 function closeSidebarOnMobile({ returnFocus = true } = {}) {
   const sidebar = document.getElementById('sidebar');
+  if (isServerChatDockedSidebar()) {
+    syncResponsiveSidebarState();
+    return;
+  }
   if (state.isMacOSClient && !isMobileLayout()) {
     sidebar?.classList.remove('hidden', 'mobile-open', 'is-dragging-close');
     sidebar?.style.removeProperty('--sidebar-drag-offset');
@@ -1009,6 +1058,8 @@ function openMobileMoreMenu() {
   dom.mobileMoreBackdrop.classList.remove('hidden');
   dom.mobileMoreBtn?.setAttribute('aria-expanded', 'true');
   document.body.classList.add('mobile-more-open');
+  dom.mobileMoreMenu.classList.add('open');
+  dom.mobileMoreBackdrop.classList.add('open');
   requestAnimationFrame(() => {
     dom.mobileMoreMenu.classList.add('open');
     dom.mobileMoreBackdrop.classList.add('open');
@@ -2767,6 +2818,7 @@ function afterLogin() {
   dom.userAvatar.textContent = state.user.username[0].toUpperCase();
   initControlPanel();
   setActiveTab('chat');
+  syncResponsiveSidebarState();
   loadChats();
   loadModels();
   restoreInputDraft('new');
@@ -3211,6 +3263,8 @@ function initEvents() {
   syncMobileWebMode();
   window.addEventListener('resize', syncMobileWebMode, { passive: true });
   window.visualViewport?.addEventListener?.('resize', syncMobileWebMode, { passive: true });
+  syncResponsiveSidebarState();
+  window.addEventListener('resize', () => syncResponsiveSidebarState(), { passive: true });
 
   document.addEventListener('keydown', (e) => {
     if (handleMacOSClientShortcut(e)) return;

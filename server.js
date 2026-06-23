@@ -1179,6 +1179,7 @@ function startControlHealthCheck() {
 }
 
 // ── Server-chat-only guards ─────────────────────────────
+let finderRoutes;
 if (IS_SERVER_CHAT_ONLY) {
   app.use('/api/control', (req, res) => {
     res.status(403).json({ error: 'Control is disabled in server-chat-only mode.' });
@@ -1192,7 +1193,7 @@ if (IS_SERVER_CHAT_ONLY) {
   app.use('/api/control', createControlRouter({ controlUrl: CONTROL_URL }));
 
   // ── Finder / File Browser ──────────────────────────────
-  const finderRoutes = require('./routes/finder');
+  finderRoutes = require('./routes/finder');
   app.use('/api/finder', finderRoutes);
 }
 
