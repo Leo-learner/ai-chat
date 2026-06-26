@@ -19,6 +19,7 @@ const iconv = require('iconv-lite');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'Leo';
 const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -1204,8 +1205,8 @@ app.get('*', (req, res) => {
 
 // ── Start ───────────────────────────────────────────────
 assertRuntimeConfig();
-app.listen(PORT, () => {
-  rootLogger.info(`Server running at http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  rootLogger.info(`Server running at http://${HOST}:${PORT}`);
   rootLogger.info(`Database: ${DB_PATH}`);
 
   const { loadProviders } = require('./providers');
