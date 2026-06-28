@@ -70,6 +70,11 @@ const userQueries = {
   findByUsername: db.prepare(`SELECT * FROM users WHERE username = ?`),
   findByEmail:    db.prepare(`SELECT * FROM users WHERE email = ?`),
   findById:       db.prepare(`SELECT id, username, email, avatar, role, created_at FROM users WHERE id = ?`),
+  // Includes the password hash — used only server-side to verify the current
+  // password before a self-service username/password change. Never returned to clients.
+  findWithPasswordById: db.prepare(`SELECT * FROM users WHERE id = ?`),
+  updateUsername: db.prepare(`UPDATE users SET username = ?, updated_at = datetime('now') WHERE id = ?`),
+  updatePassword: db.prepare(`UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?`),
   setRoleByUsername: db.prepare(`UPDATE users SET role = ?, updated_at = datetime('now') WHERE username = ?`),
 };
 

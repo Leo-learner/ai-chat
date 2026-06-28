@@ -27,11 +27,12 @@ const CHAT_DRAFT_STORAGE_PREFIX = 'ai_chat_draft:';
 const MESSAGE_RENDER_LIMIT = 60;
 
 function getStoredThemePreference() {
+  // Default to light per product direction; a stored user choice always wins.
   try {
     const stored = localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY);
-    return THEME_CHOICES.includes(stored) ? stored : 'system';
+    return THEME_CHOICES.includes(stored) ? stored : 'light';
   } catch {
-    return 'system';
+    return 'light';
   }
 }
 
@@ -134,46 +135,18 @@ const dom = {
   sendBtn: document.getElementById('sendBtn'),
   stopBtn: document.getElementById('stopBtn'),
   scrollToBottomBtn: document.getElementById('scrollToBottomBtn'),
-  tabFinder: document.getElementById('tabFinder'),
-  finderUpBtn: document.getElementById('finderUpBtn'),
-  finderRefreshBtn: document.getElementById('finderRefreshBtn'),
-  finderSelectAllBtn: document.getElementById('finderSelectAllBtn'),
-  finderPasteBtn: document.getElementById('finderPasteBtn'),
-  finderUploadBtn: document.getElementById('finderUploadBtn'),
-  finderNewFolderBtn: document.getElementById('finderNewFolderBtn'),
-  finderSearchInput: document.getElementById('finderSearchInput'),
-  finderBreadcrumbs: document.getElementById('finderBreadcrumbs'),
-  finderSummary: document.getElementById('finderSummary'),
-  finderList: document.getElementById('finderList'),
-  finderEmpty: document.getElementById('finderEmpty'),
-  finderSelectionBar: document.getElementById('finderSelectionBar'),
-  finderSelectionCount: document.getElementById('finderSelectionCount'),
-  finderDownloadBtn: document.getElementById('finderDownloadBtn'),
-  finderCopyBtn: document.getElementById('finderCopyBtn'),
-  finderCutBtn: document.getElementById('finderCutBtn'),
-  finderRenameBtn: document.getElementById('finderRenameBtn'),
-  finderDeleteBtn: document.getElementById('finderDeleteBtn'),
-  finderClearBtn: document.getElementById('finderClearBtn'),
-  finderUploadInput: document.getElementById('finderUploadInput'),
-  fileSheetBackdrop: document.getElementById('fileSheetBackdrop'),
-  fileSheet: document.getElementById('fileSheet'),
-  closeFileSheet: document.getElementById('closeFileSheet'),
-  fileSheetTitle: document.getElementById('fileSheetTitle'),
-  fileSheetMeta: document.getElementById('fileSheetMeta'),
-  fileSheetPreview: document.getElementById('fileSheetPreview'),
-  fileDownloadBtn: document.getElementById('fileDownloadBtn'),
-  fileRenameBtn: document.getElementById('fileRenameBtn'),
-  fileDeleteBtn: document.getElementById('fileDeleteBtn'),
-  transferBackdrop: document.getElementById('transferBackdrop'),
-  transferSheet: document.getElementById('transferSheet'),
-  closeTransferSheet: document.getElementById('closeTransferSheet'),
-  transferTitle: document.getElementById('transferTitle'),
-  transferFile: document.getElementById('transferFile'),
-  transferProgress: document.getElementById('transferProgress'),
-  transferPercent: document.getElementById('transferPercent'),
-  transferSpeed: document.getElementById('transferSpeed'),
-  transferEta: document.getElementById('transferEta'),
-  transferCancelBtn: document.getElementById('transferCancelBtn'),
+  settingsBtn: document.getElementById('settingsBtn'),
+  settingsBackdrop: document.getElementById('settingsBackdrop'),
+  settingsModal: document.getElementById('settingsModal'),
+  closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+  settingsForm: document.getElementById('settingsForm'),
+  settingsUsername: document.getElementById('settingsUsername'),
+  settingsNewPassword: document.getElementById('settingsNewPassword'),
+  settingsConfirmPassword: document.getElementById('settingsConfirmPassword'),
+  settingsCurrentPassword: document.getElementById('settingsCurrentPassword'),
+  settingsMessage: document.getElementById('settingsMessage'),
+  settingsSaveBtn: document.getElementById('settingsSaveBtn'),
+  settingsLogoutBtn: document.getElementById('settingsLogoutBtn'),
 };
 
 function syncClientModeAttributes() {
@@ -279,22 +252,6 @@ const API = {
   del(path, options = {}) { return this.request('DELETE', path, null, options); },
 };
 
-const finderState = {
-  cwd: '',
-  rootLabel: 'Home',
-  items: [],
-  query: '',
-  selected: new Set(),
-  clipboard: null,
-  loading: false,
-  previewItem: null,
-  searchTimer: null,
-  loadSeq: 0,
-  loadController: null,
-  truncated: false,
-  maxResults: 0,
-};
-
 const memoryState = {
   memories: [],
   health: null,
@@ -306,22 +263,6 @@ const PROMPT_SHORTCUTS = {
   expand: '请继续展开上面的回答，补充关键细节和容易忽略的注意点。',
   rewrite: '请把上面的内容改写得更清楚、更自然，并保留原意。',
   steps: '请把上面的内容整理成可执行步骤，按优先级排列。',
-};
-
-const controlAppState = {
-  apps: [],
-  query: '',
-  loading: false,
-  lastLoadedAt: 0,
-  minRefreshMs: 7000,
-};
-
-const controlUiState = {
-  refreshing: false,
-  terminalRunning: false,
-  terminalHistory: [],
-  terminalHistoryIndex: -1,
-  terminalCwd: '~',
 };
 
 function applyAppModeCopy() {
@@ -513,178 +454,6 @@ function appPrompt({ title, message, fields, confirmText = '保存', danger = fa
   return openAppDialog({ title, message, fields, confirmText, danger });
 }
 
-const transferState = {
-  xhr: null,
-  active: false,
-  mode: '',
-  title: '',
-  name: '',
-  startedAt: 0,
-  loaded: 0,
-  total: 0,
-  status: '',
-  hideTimer: null,
-};
-
-function formatSpeed(bytesPerSecond = 0) {
-  const value = Number(bytesPerSecond || 0);
-  if (!Number.isFinite(value) || value <= 0) return '0 B/s';
-  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
-  let n = value;
-  let unit = 0;
-  while (n >= 1024 && unit < units.length - 1) {
-    n /= 1024;
-    unit += 1;
-  }
-  return `${n.toFixed(n >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
-}
-
-function formatEta(seconds) {
-  const value = Number(seconds);
-  if (!Number.isFinite(value) || value < 0) return 'ETA --';
-  if (value < 1) return 'ETA <1s';
-  const total = Math.round(value);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  if (h > 0) return `ETA ${h}h ${m}m`;
-  if (m > 0) return `ETA ${m}m ${s}s`;
-  return `ETA ${s}s`;
-}
-
-function setTransferModalVisible(visible) {
-  dom.transferBackdrop?.classList.toggle('hidden', !visible);
-  dom.transferSheet?.classList.toggle('hidden', !visible);
-  if (visible) {
-    dom.transferBackdrop?.classList.add('open');
-    dom.transferSheet?.classList.add('open');
-  } else {
-    dom.transferBackdrop?.classList.remove('open');
-    dom.transferSheet?.classList.remove('open');
-  }
-}
-
-function updateTransferModalUI({ title, name, loaded, total, status }) {
-  const elapsed = Math.max((Date.now() - transferState.startedAt) / 1000, 0.001);
-  const totalBytes = Number(total || 0);
-  const loadedBytes = Math.max(0, Number(loaded || 0));
-  const pct = totalBytes > 0 ? Math.min(100, (loadedBytes / totalBytes) * 100) : 0;
-  const speed = loadedBytes / elapsed;
-  const remaining = totalBytes > 0 ? Math.max(totalBytes - loadedBytes, 0) : 0;
-  const eta = speed > 0 && totalBytes > 0 ? remaining / speed : NaN;
-
-  if (dom.transferTitle) dom.transferTitle.textContent = title || transferState.title || 'Transfer';
-  if (dom.transferFile) dom.transferFile.textContent = name || transferState.name || '—';
-  if (dom.transferProgress) dom.transferProgress.style.width = `${pct}%`;
-  if (dom.transferPercent) dom.transferPercent.textContent = `${Math.round(pct)}%`;
-  if (dom.transferSpeed) dom.transferSpeed.textContent = `${formatSpeed(speed)}`;
-  if (dom.transferEta) dom.transferEta.textContent = Number.isFinite(eta) ? formatEta(eta) : (status || transferState.status || 'Working…');
-}
-
-function beginTransferModal({ mode, title, name, total = 0, cancelable = true }) {
-  clearTimeout(transferState.hideTimer);
-  transferState.hideTimer = null;
-  transferState.active = true;
-  transferState.mode = mode;
-  transferState.title = title;
-  transferState.name = name;
-  transferState.loaded = 0;
-  transferState.total = Number(total || 0);
-  transferState.status = '';
-  transferState.startedAt = Date.now();
-  if (dom.transferCancelBtn) dom.transferCancelBtn.disabled = !cancelable;
-  setTransferModalVisible(true);
-  updateTransferModalUI({ title, name, loaded: 0, total: transferState.total, status: 'Starting…' });
-}
-
-function finishTransferModal(message = 'Done', isError = false) {
-  transferState.active = false;
-  transferState.status = message;
-  if (dom.transferEta) dom.transferEta.textContent = message;
-  if (dom.transferPercent) dom.transferPercent.textContent = isError ? 'Failed' : '100%';
-  if (dom.transferProgress) dom.transferProgress.style.width = isError ? '100%' : '100%';
-  if (dom.transferSpeed) dom.transferSpeed.textContent = isError ? '—' : formatSpeed(0);
-  transferState.xhr = null;
-  clearTimeout(transferState.hideTimer);
-  transferState.hideTimer = setTimeout(() => {
-    setTransferModalVisible(false);
-  }, isError ? 1800 : 750);
-}
-
-function abortCurrentTransfer() {
-  if (transferState.xhr) {
-    try { transferState.xhr.abort(); } catch {}
-  }
-}
-
-function xhrRequest({ method, url, body = null, headers = {}, responseType = '', onProgress, onUploadProgress } = {}) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    transferState.xhr = xhr;
-    xhr.open(method, url, true);
-    if (responseType) xhr.responseType = responseType;
-    if (state.token) xhr.setRequestHeader('Authorization', `Bearer ${state.token}`);
-    Object.entries(headers).forEach(([key, value]) => {
-      if (value != null) xhr.setRequestHeader(key, value);
-    });
-
-    const parseError = () => {
-      const ct = xhr.getResponseHeader('content-type') || '';
-      if (ct.includes('application/json')) {
-        try { return JSON.parse(xhr.responseText || '{}').error; } catch { return null; }
-      }
-      return (xhr.responseText || '').trim() || null;
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.responseType === 'blob' ? xhr.response : xhr.responseText);
-      } else {
-        reject(new Error(parseError() || `Request failed (${xhr.status})`));
-      }
-    };
-    xhr.onerror = () => reject(new Error('Network request failed'));
-    xhr.onabort = () => reject(new Error('Cancelled'));
-    xhr.upload.onprogress = (e) => {
-      if (onUploadProgress) onUploadProgress(e);
-    };
-    xhr.onprogress = (e) => {
-      if (onProgress) onProgress(e);
-    };
-    xhr.send(body);
-  });
-}
-
-function triggerBrowserDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1200);
-}
-
-function applyTransferProgress({ loaded, total, title, name, status }) {
-  transferState.loaded = Number(loaded || 0);
-  transferState.total = Number(total || transferState.total || 0);
-  if (title) transferState.title = title;
-  if (name) transferState.name = name;
-  if (status) transferState.status = status;
-  updateTransferModalUI({
-    title: transferState.title,
-    name: transferState.name,
-    loaded: transferState.loaded,
-    total: transferState.total,
-    status: transferState.status,
-  });
-}
-
-function escHtml(str = '') {
-  return String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
-}
-
 function isMobileLayout() {
   return window.matchMedia('(max-width: 720px)').matches;
 }
@@ -841,17 +610,6 @@ function closePromptAssistant({ returnFocus = true } = {}) {
 function togglePromptAssistant() {
   if (dom.promptQuickbar?.classList.contains('open')) closePromptAssistant();
   else openPromptAssistant();
-}
-
-function syncSliderFill(sliderEl, fillEl) {
-  if (!sliderEl || !fillEl) return;
-  const value = Number(sliderEl.value || 0);
-  const min = Number(sliderEl.min || 0);
-  const max = Number(sliderEl.max || 100);
-  const pctRaw = max === min ? 0 : ((value - min) / (max - min)) * 100;
-  const pct = Math.max(0, Math.min(100, pctRaw));
-  sliderEl.style.setProperty('--fill', `${pct}%`);
-  fillEl.style.width = `${pct}%`;
 }
 
 function showView(viewId) {
@@ -1838,6 +1596,11 @@ function renderMessages({ scroll = true } = {}) {
   if (scroll) scrollToBottom({ smooth: false });
 }
 
+function isNearBottom(el = dom.messagesContainer, threshold = 120) {
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+}
+
 function scrollToBottom({ smooth = true } = {}) {
   requestAnimationFrame(() => {
     try {
@@ -1860,8 +1623,9 @@ function syncScrollToBottomButton() {
     dom.scrollToBottomBtn.classList.add('hidden');
     return;
   }
-  const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
-  dom.scrollToBottomBtn.classList.toggle('hidden', remaining < 120 || state.streaming);
+  // Show the "back to latest" button whenever the user is scrolled up — including
+  // mid-stream, so they can return after reading earlier content.
+  dom.scrollToBottomBtn.classList.toggle('hidden', isNearBottom(el));
 }
 
 function escapeHtml(str) {
@@ -1932,9 +1696,6 @@ function focusMacOSPrimaryField() {
   if (!state.isMacOSClient) return;
   const target = (() => {
     if (state.activeTab === 'memory') return dom.memorySearchInput || dom.messageInput;
-    if (state.activeTab === 'finder') return dom.finderSearchInput || dom.messageInput;
-    if (state.activeTab === 'control') return document.getElementById('appNameInput') || dom.messageInput;
-    if (state.activeTab === 'terminal') return document.getElementById('terminalInput') || dom.messageInput;
     return dom.messageInput;
   })();
   target?.focus?.({ preventScroll: true });
@@ -2318,9 +2079,12 @@ async function sendPrompt(content, { clearInput = true, mode = 'send', assistant
 
         if (parsed.type === 'content') {
           responseStarted = true;
+          // Only follow the stream if the user is already near the bottom; if they
+          // scrolled up to read, don't yank them back down.
+          const stick = isNearBottom();
           fullContent += parsed.content || '';
           renderLiveContent(streamContentEl, fullContent);
-          scrollToBottom();
+          if (stick) scrollToBottom({ smooth: false });
         } else if (parsed.type === 'search_status') {
           updateStreamStatus(parsed.message || '联网搜索状态已更新', parsed.status || '');
         } else if (parsed.type === 'context_status') {
@@ -2899,6 +2663,94 @@ async function checkAuth() {
   }
 }
 
+function setSettingsMessage(text, kind = '') {
+  const el = dom.settingsMessage;
+  if (!el) return;
+  if (!text) {
+    el.classList.add('hidden');
+    el.textContent = '';
+    el.removeAttribute('data-kind');
+    return;
+  }
+  el.textContent = text;
+  el.dataset.kind = kind;
+  el.classList.remove('hidden');
+}
+
+function openSettings() {
+  if (!dom.settingsModal) return;
+  if (dom.settingsUsername) dom.settingsUsername.value = state.user?.username || '';
+  if (dom.settingsNewPassword) dom.settingsNewPassword.value = '';
+  if (dom.settingsConfirmPassword) dom.settingsConfirmPassword.value = '';
+  if (dom.settingsCurrentPassword) dom.settingsCurrentPassword.value = '';
+  setSettingsMessage('');
+  syncThemeControls();
+  dom.settingsBackdrop?.classList.remove('hidden');
+  dom.settingsModal.classList.remove('hidden');
+  setElementSuppressed(dom.settingsModal, false);
+  setElementSuppressed(dom.settingsBackdrop, false);
+  setTimeout(() => dom.settingsUsername?.focus(), 30);
+}
+
+function closeSettings() {
+  dom.settingsModal?.classList.add('hidden');
+  dom.settingsBackdrop?.classList.add('hidden');
+  setElementSuppressed(dom.settingsModal, true);
+  setElementSuppressed(dom.settingsBackdrop, true);
+}
+
+async function submitSettings(e) {
+  e.preventDefault();
+  const currentPassword = dom.settingsCurrentPassword?.value || '';
+  const newUsername = (dom.settingsUsername?.value || '').trim();
+  const newPassword = dom.settingsNewPassword?.value || '';
+  const confirmPassword = dom.settingsConfirmPassword?.value || '';
+
+  const usernameChanged = newUsername && newUsername !== (state.user?.username || '');
+  const wantsPassword = newPassword.length > 0;
+
+  if (!usernameChanged && !wantsPassword) return setSettingsMessage('没有需要修改的内容', 'error');
+  if (usernameChanged && (newUsername.length < 2 || newUsername.length > 30)) {
+    return setSettingsMessage('用户名需为 2-30 个字符', 'error');
+  }
+  if (wantsPassword && newPassword.length < 6) return setSettingsMessage('新密码至少 6 位字符', 'error');
+  if (wantsPassword && newPassword !== confirmPassword) return setSettingsMessage('两次输入的新密码不一致', 'error');
+  if (!currentPassword) return setSettingsMessage('请输入当前密码以确认修改', 'error');
+
+  const payload = { currentPassword };
+  if (usernameChanged) payload.newUsername = newUsername;
+  if (wantsPassword) payload.newPassword = newPassword;
+
+  const btn = dom.settingsSaveBtn;
+  const original = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+  try {
+    // authRedirect:false so a wrong current password (400) doesn't trip the
+    // global 401/redirect handling; we surface the message inline instead.
+    const data = await API.patch('/auth/profile', payload, { authRedirect: false });
+    if (data.token) {
+      state.token = data.token;
+      try { localStorage.setItem('ai_chat_token', data.token); } catch {}
+    }
+    if (data.user) {
+      state.user = data.user;
+      if (dom.userName) dom.userName.textContent = data.user.username;
+      if (dom.userAvatar && data.user.username) dom.userAvatar.textContent = data.user.username[0].toUpperCase();
+      if (dom.settingsUsername) dom.settingsUsername.value = data.user.username;
+    }
+    if (dom.settingsNewPassword) dom.settingsNewPassword.value = '';
+    if (dom.settingsConfirmPassword) dom.settingsConfirmPassword.value = '';
+    if (dom.settingsCurrentPassword) dom.settingsCurrentPassword.value = '';
+    setSettingsMessage('已保存', 'success');
+    toast('设置已更新');
+    setTimeout(closeSettings, 800);
+  } catch (err) {
+    setSettingsMessage(err.message || '保存失败', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = original || '保存修改'; }
+  }
+}
+
 function initEvents() {
   const sidebar = document.getElementById('sidebar');
   sidebar?.classList.add('hidden');
@@ -2908,8 +2760,8 @@ function initEvents() {
   setElementSuppressed(dom.mobileMoreBackdrop, true);
   setElementSuppressed(dom.modelSheet, true);
   setElementSuppressed(dom.modelSheetBackdrop, true);
-  setElementSuppressed(dom.fileSheet, true);
-  setElementSuppressed(dom.fileSheetBackdrop, true);
+  setElementSuppressed(dom.settingsModal, true);
+  setElementSuppressed(dom.settingsBackdrop, true);
 
   dom.logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('ai_chat_token');
@@ -2922,29 +2774,28 @@ function initEvents() {
     memoryState.memories = [];
     memoryState.health = null;
     memoryState.loaded = false;
-    finderState.cwd = '';
-    finderState.items = [];
-    finderState.selected.clear();
-    finderState.clipboard = null;
-    finderState.loadSeq += 1;
-    clearTimeout(transferState.hideTimer);
-    transferState.hideTimer = null;
-    abortCurrentTransfer();
-    transferState.xhr = null;
-    transferState.active = false;
-    setTransferModalVisible(false);
     initControlPanel.initialized = false;
     document.body?.classList.remove('is-admin');
     document.querySelectorAll('.tab-btn').forEach(btn => { btn.style.display = ''; btn.hidden = false; });
     closeSidebarOnMobile();
     closeMobileMoreMenu();
     closeModelSheet();
-    closeFileSheet();
     showView('authView');
   });
 
   dom.newChatBtn.addEventListener('click', newChat);
   dom.mobileNewChatBtn?.addEventListener('click', newChat);
+
+  // Settings modal
+  dom.settingsBtn?.addEventListener('click', openSettings);
+  dom.closeSettingsBtn?.addEventListener('click', closeSettings);
+  dom.settingsBackdrop?.addEventListener('click', closeSettings);
+  dom.settingsForm?.addEventListener('submit', submitSettings);
+  dom.settingsLogoutBtn?.addEventListener('click', () => { closeSettings(); dom.logoutBtn.click(); });
+  dom.settingsModal?.addEventListener('click', (e) => {
+    const themeBtn = e.target.closest('button[data-theme-choice]');
+    if (themeBtn?.dataset.themeChoice) setThemePreference(themeBtn.dataset.themeChoice);
+  });
   dom.memoryComposeToggle?.addEventListener('click', () => {
     const next = dom.memoryComposeToggle.getAttribute('aria-expanded') !== 'true';
     setMemoryComposerOpen(next, { focus: next });
@@ -3042,6 +2893,11 @@ function initEvents() {
       newChat();
       return;
     }
+    if (actionBtn?.dataset.mobileAction === 'settings') {
+      closeMobileMoreMenu();
+      openSettings();
+      return;
+    }
 
     const themeBtn = e.target.closest('button[data-theme-choice]');
     if (themeBtn?.dataset.themeChoice) {
@@ -3091,70 +2947,6 @@ function initEvents() {
       }
     }
   });
-
-  dom.finderUpBtn?.addEventListener('click', finderGoUp);
-  dom.finderRefreshBtn?.addEventListener('click', finderRefresh);
-  dom.finderSelectAllBtn?.addEventListener('click', () => updateFinderSelectionFromVisible(true));
-  dom.finderPasteBtn?.addEventListener('click', finderPaste);
-  dom.finderDownloadBtn?.addEventListener('click', downloadSelectedFinderItem);
-  dom.finderUploadBtn?.addEventListener('click', () => dom.finderUploadInput?.click());
-  dom.finderNewFolderBtn?.addEventListener('click', async () => {
-    const result = await appPrompt({
-      title: '新建文件夹',
-      fields: [{ name: 'name', label: '文件夹名称', required: true }],
-      confirmText: '创建',
-    });
-    const name = result?.name;
-    if (!name || !name.trim()) return;
-    setFinderButtonBusy(dom.finderNewFolderBtn, true);
-    try {
-      await API.post('/finder/mkdir', { path: finderState.cwd, name: name.trim() });
-      await loadFinder(finderState.cwd);
-    } catch (err) {
-      toast(err.message || '创建文件夹失败');
-    } finally {
-      setFinderButtonBusy(dom.finderNewFolderBtn, false);
-    }
-  });
-  dom.finderSearchInput?.addEventListener('input', () => {
-    finderState.query = dom.finderSearchInput.value || '';
-    clearTimeout(finderState.searchTimer);
-    finderState.searchTimer = setTimeout(() => loadFinder(finderState.cwd), 180);
-  });
-  dom.finderList?.addEventListener('click', (e) => {
-    const row = e.target.closest('.finder-item');
-    if (!row) return;
-    if (e.target.closest('.finder-select')) return;
-    const item = finderState.items.find(it => it.path === row.dataset.path);
-    if (!item) return;
-    if (item.type === 'dir') {
-      if (finderState.query.trim()) {
-        finderState.query = '';
-        if (dom.finderSearchInput) dom.finderSearchInput.value = '';
-      }
-      loadFinder(item.path);
-    }
-    else openFileSheet(item);
-  });
-  dom.finderSelectionBar?.addEventListener('click', (e) => { if (e.target === dom.finderSelectionBar) finderClearSelection(); });
-  dom.finderCopyBtn?.addEventListener('click', () => finderSetClipboard('copy', [...finderState.selected]));
-  dom.finderCutBtn?.addEventListener('click', () => finderSetClipboard('cut', [...finderState.selected]));
-  dom.finderRenameBtn?.addEventListener('click', finderRenameSingle);
-  dom.finderDeleteBtn?.addEventListener('click', () => finderDelete());
-  dom.finderClearBtn?.addEventListener('click', finderClearSelection);
-  dom.finderUploadInput?.addEventListener('change', async () => {
-    try {
-      await finderUploadFiles(Array.from(dom.finderUploadInput.files || []));
-      dom.finderUploadInput.value = '';
-    } catch (err) {
-      toast(err.message || 'Upload failed');
-    }
-  });
-  dom.fileSheetBackdrop?.addEventListener('click', closeFileSheet);
-  dom.closeFileSheet?.addEventListener('click', closeFileSheet);
-  dom.transferBackdrop?.addEventListener('click', abortCurrentTransfer);
-  dom.closeTransferSheet?.addEventListener('click', abortCurrentTransfer);
-  dom.transferCancelBtn?.addEventListener('click', abortCurrentTransfer);
 
   dom.messageInput.addEventListener('input', () => {
     updateSendButton();
@@ -3274,7 +3066,7 @@ function initEvents() {
       closeMobileMoreMenu();
       closeSidebarOnMobile();
       closeModelSheet();
-      closeFileSheet();
+      closeSettings();
     }
   });
 
@@ -3287,589 +3079,6 @@ resetViewVisibility();
 initAuth();
 initEvents();
 checkAuth();
-
-function formatBytes(bytes) {
-  const n = Number(bytes || 0);
-  if (!Number.isFinite(n)) return '—';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  let value = n;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return unit === 0 ? `${value} ${units[unit]}` : `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
-}
-
-function formatDateTime(ms) {
-  if (!ms) return '—';
-  try {
-    return new Date(ms).toLocaleString('zh-CN', { hour12: false });
-  } catch {
-    return '—';
-  }
-}
-
-function finderPathParts(rel) {
-  if (!rel) return [];
-  return rel.split('/').filter(Boolean);
-}
-
-function finderVisibleItems() {
-  const q = finderState.query.trim().normalize('NFKC').toLowerCase();
-  if (!q) return finderState.items;
-  return finderState.items.filter(item => `${item.name} ${item.path}`.normalize('NFKC').toLowerCase().includes(q));
-}
-
-function finderSelectedItems() {
-  return finderState.items.filter(item => finderState.selected.has(item.path));
-}
-
-function finderSetClipboard(mode, paths) {
-  finderState.clipboard = { mode, paths: [...new Set(paths)], source: finderState.cwd };
-  updateFinderToolbarState();
-}
-
-function finderToggleSelection(path, force) {
-  if (typeof force === 'boolean') {
-    if (force) finderState.selected.add(path);
-    else finderState.selected.delete(path);
-  } else if (finderState.selected.has(path)) {
-    finderState.selected.delete(path);
-  } else {
-    finderState.selected.add(path);
-  }
-  updateFinderSelectionBar();
-  renderFinderList();
-}
-
-function finderClearSelection() {
-  finderState.selected.clear();
-  updateFinderSelectionBar();
-  renderFinderList();
-}
-
-function updateFinderToolbarState() {
-  if (dom.finderPasteBtn) {
-    dom.finderPasteBtn.disabled = !finderState.clipboard?.paths?.length;
-  }
-}
-
-function setFinderButtonBusy(button, busy) {
-  if (!button) return;
-  if (busy) {
-    if (!button.dataset.finderWasDisabled) {
-      button.dataset.finderWasDisabled = button.disabled ? 'true' : 'false';
-    }
-    button.classList.add('is-busy');
-    button.setAttribute('aria-busy', 'true');
-    button.disabled = true;
-    return;
-  }
-
-  const wasDisabled = button.dataset.finderWasDisabled === 'true';
-  delete button.dataset.finderWasDisabled;
-  button.classList.remove('is-busy');
-  button.removeAttribute('aria-busy');
-  button.disabled = wasDisabled;
-}
-
-function updateFinderSelectionBar() {
-  const count = finderState.selected.size;
-  if (dom.finderSelectionBar) dom.finderSelectionBar.classList.toggle('hidden', count === 0);
-  if (dom.finderSelectionCount) dom.finderSelectionCount.textContent = `已选 ${count} 项`;
-  if (dom.finderRenameBtn) dom.finderRenameBtn.disabled = count !== 1;
-  if (dom.finderDownloadBtn) dom.finderDownloadBtn.disabled = count === 0;
-  updateFinderToolbarState();
-}
-
-function renderFinderBreadcrumbs() {
-  if (!dom.finderBreadcrumbs) return;
-  const crumbs = [];
-  const rootBtn = document.createElement('button');
-  rootBtn.type = 'button';
-  rootBtn.className = 'finder-crumb';
-  rootBtn.textContent = finderState.rootLabel || 'Home';
-  rootBtn.addEventListener('click', () => loadFinder(''));
-  crumbs.push(rootBtn);
-
-  let accum = '';
-  for (const part of finderPathParts(finderState.cwd)) {
-    const sep = document.createElement('span');
-    sep.className = 'finder-crumb-sep';
-    sep.textContent = '›';
-    crumbs.push(sep);
-    accum = accum ? `${accum}/${part}` : part;
-    const crumb = document.createElement('button');
-    crumb.type = 'button';
-    crumb.className = 'finder-crumb';
-    crumb.textContent = part;
-    const target = accum;
-    crumb.addEventListener('click', () => loadFinder(target));
-    crumbs.push(crumb);
-  }
-
-  dom.finderBreadcrumbs.replaceChildren(...crumbs);
-}
-
-function renderFinderSummary() {
-  if (!dom.finderSummary) return;
-  if (finderState.loading && finderState.query.trim()) {
-    dom.finderSummary.textContent = '搜索中…';
-    return;
-  }
-  const visible = finderVisibleItems();
-  const folders = visible.filter(item => item.type === 'dir').length;
-  const files = visible.length - folders;
-  const suffix = finderState.query.trim() ? ' 个结果' : ' 项';
-  const limited = finderState.truncated && finderState.query.trim()
-    ? ` · 已显示前 ${finderState.maxResults || visible.length} 项`
-    : '';
-  dom.finderSummary.textContent = `${visible.length}${suffix} · ${folders} 个文件夹 · ${files} 个文件${limited}`;
-}
-
-function finderIconFor(item) {
-  if (item.type === 'dir') return '📁';
-  if (item.type === 'symlink') return '🔗';
-  const ext = (item.ext || '').replace('.', '');
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'heic'].includes(ext)) return '🖼️';
-  if (['mp4', 'mov', 'mkv', 'webm'].includes(ext)) return '🎞️';
-  if (['mp3', 'm4a', 'wav', 'flac', 'aac'].includes(ext)) return '🎵';
-  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '🗜️';
-  if (['js', 'ts', 'json', 'html', 'css', 'md', 'txt'].includes(ext)) return '📝';
-  return '📄';
-}
-
-function renderFinderList() {
-  if (!dom.finderList || !dom.finderEmpty) return;
-  const visible = finderVisibleItems();
-  dom.finderList.innerHTML = '';
-  dom.finderEmpty.textContent = finderState.loading
-    ? (finderState.query.trim() ? '搜索中…' : '加载中…')
-    : (finderState.query.trim() ? '没有匹配的文件。' : '此文件夹为空。');
-  dom.finderEmpty.classList.toggle('hidden', finderState.loading || visible.length > 0);
-
-  for (const item of visible) {
-    const row = document.createElement('div');
-    row.className = `finder-item finder-item-${item.type}${finderState.selected.has(item.path) ? ' selected' : ''}`;
-    row.dataset.path = item.path;
-    row.dataset.type = item.type;
-
-    const checkbox = document.createElement('button');
-    checkbox.type = 'button';
-    checkbox.className = 'finder-select';
-    checkbox.setAttribute('aria-label', `Select ${item.name}`);
-    checkbox.textContent = finderState.selected.has(item.path) ? '✓' : '';
-    checkbox.addEventListener('click', (e) => {
-      e.stopPropagation();
-      finderToggleSelection(item.path);
-    });
-
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'finder-main';
-    main.innerHTML = `
-      <span class="finder-icon">${finderIconFor(item)}</span>
-      <span class="finder-main-copy">
-        <span class="finder-name">${escHtml(item.name)}</span>
-        <span class="finder-meta">${item.type === 'dir' ? '文件夹' : formatBytes(item.size)} · ${formatDateTime(item.mtimeMs)}</span>
-      </span>
-    `;
-    main.addEventListener('click', () => {
-      if (item.type === 'dir') {
-        loadFinder(item.path);
-      } else {
-        openFileSheet(item);
-      }
-    });
-
-    const chevron = document.createElement('span');
-    chevron.className = 'finder-chevron';
-    chevron.textContent = item.type === 'dir' ? '›' : '↗';
-
-    row.append(checkbox, main, chevron);
-    dom.finderList.appendChild(row);
-  }
-
-  renderFinderBreadcrumbs();
-  renderFinderSummary();
-  updateFinderSelectionBar();
-}
-
-async function loadFinder(path = finderState.cwd) {
-  if (!dom.finderList) return;
-  const seq = ++finderState.loadSeq;
-  if (finderState.loadController) {
-    try { finderState.loadController.abort(); } catch {}
-  }
-  const controller = new AbortController();
-  finderState.loadController = controller;
-  finderState.loading = true;
-  finderState.truncated = false;
-  finderState.maxResults = 0;
-  dom.tabFinder?.classList.add('is-loading');
-  setFinderButtonBusy(dom.finderRefreshBtn, true);
-  finderState.query = dom.finderSearchInput ? dom.finderSearchInput.value : finderState.query;
-  dom.finderSearchInput?.classList.toggle('is-searching', Boolean(finderState.query.trim()));
-  renderFinderList();
-
-  const query = finderState.query.trim();
-  const endpoint = query
-    ? `/finder/search?path=${encodeURIComponent(path || '')}&q=${encodeURIComponent(query)}`
-    : `/finder/list?path=${encodeURIComponent(path || '')}`;
-
-  let lastErr = null;
-  try {
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        const data = await API.get(endpoint, { signal: controller.signal });
-        if (seq !== finderState.loadSeq || finderState.loadController !== controller) return;
-        finderState.cwd = data.cwd || '';
-        finderState.rootLabel = data.rootLabel || 'Home';
-        finderState.items = data.items || [];
-        finderState.truncated = Boolean(data.truncated);
-        finderState.maxResults = Number(data.maxResults || 0);
-        finderState.selected = new Set([...finderState.selected].filter(p => finderState.items.some(item => item.path === p)));
-        if (dom.finderUpBtn) dom.finderUpBtn.disabled = !finderState.cwd;
-        renderFinderList();
-        return;
-      } catch (err) {
-        lastErr = err;
-        if (err?.name === 'AbortError') return;
-        if (attempt < 2) {
-          await new Promise(r => setTimeout(r, 150 * attempt));
-          continue;
-        }
-        throw err;
-      }
-    }
-  } catch (err) {
-    if (seq !== finderState.loadSeq || finderState.loadController !== controller) return;
-    console.error('Failed to load finder:', err);
-    finderState.items = [];
-    renderFinderList();
-    if (dom.finderEmpty) {
-      dom.finderEmpty.textContent = err.message || '文件夹加载失败';
-      dom.finderEmpty.classList.remove('hidden');
-    }
-    if (dom.finderUpBtn) dom.finderUpBtn.disabled = !finderState.cwd;
-  } finally {
-    if (finderState.loadController === controller) finderState.loadController = null;
-    if (seq !== finderState.loadSeq) return;
-    finderState.loading = false;
-    dom.tabFinder?.classList.remove('is-loading');
-    dom.finderSearchInput?.classList.remove('is-searching');
-    setFinderButtonBusy(dom.finderRefreshBtn, false);
-    renderFinderList();
-  }
-}
-
-function finderGoUp() {
-  if (!finderState.cwd) return;
-  if (finderState.query.trim()) {
-    finderState.query = '';
-    if (dom.finderSearchInput) dom.finderSearchInput.value = '';
-  }
-  const parent = finderPathParts(finderState.cwd).slice(0, -1).join('/');
-  loadFinder(parent);
-}
-
-function finderRefresh() {
-  loadFinder(finderState.cwd);
-}
-
-async function finderPaste() {
-  const clip = finderState.clipboard;
-  if (!clip?.paths?.length) return;
-  setFinderButtonBusy(dom.finderPasteBtn, true);
-  try {
-    const endpoint = clip.mode === 'cut' ? '/finder/move' : '/finder/copy';
-    await API.post(endpoint, { sources: clip.paths, target: finderState.cwd });
-    if (clip.mode === 'cut') finderState.clipboard = null;
-    await loadFinder(finderState.cwd);
-  } catch (err) {
-    toast(err.message || 'Paste failed');
-  } finally {
-    setFinderButtonBusy(dom.finderPasteBtn, false);
-    updateFinderToolbarState();
-  }
-}
-
-async function finderDelete(paths = [...finderState.selected]) {
-  if (!paths.length) return;
-  const ok = await appConfirm({
-    title: '删除文件',
-    message: `将删除 ${paths.length} 项，此操作无法撤销。`,
-    confirmText: '删除',
-    danger: true,
-  });
-  if (!ok) return;
-  setFinderButtonBusy(dom.finderDeleteBtn, true);
-  try {
-    await API.post('/finder/delete', { paths });
-    finderClearSelection();
-    await loadFinder(finderState.cwd);
-  } catch (err) {
-    toast(err.message || '删除失败');
-  } finally {
-    setFinderButtonBusy(dom.finderDeleteBtn, false);
-  }
-}
-
-async function finderRenameSingle() {
-  const [item] = finderSelectedItems();
-  if (!item) return;
-  const result = await appPrompt({
-    title: '重命名',
-    fields: [{ name: 'name', label: '新名称', value: item.name, required: true }],
-    confirmText: '重命名',
-  });
-  const newName = result?.name;
-  if (!newName || newName.trim() === item.name) return;
-  setFinderButtonBusy(dom.finderRenameBtn, true);
-  try {
-    await API.post('/finder/rename', { path: item.path, name: newName.trim() });
-    finderClearSelection();
-    await loadFinder(finderState.cwd);
-  } catch (err) {
-    toast(err.message || '重命名失败');
-  } finally {
-    setFinderButtonBusy(dom.finderRenameBtn, false);
-  }
-}
-
-function finderDownloadUrl(path) {
-  return `/api/finder/download?path=${encodeURIComponent(path)}`;
-}
-
-async function downloadFinderItem(item) {
-  if (transferState.active) {
-    toast('A transfer is already running');
-    return false;
-  }
-  const downloadName = item.type === 'dir' ? `${item.name}.zip` : item.name;
-  beginTransferModal({ mode: 'download', title: '下载中', name: downloadName, total: 0, cancelable: true });
-  try {
-    const blob = await xhrRequest({
-      method: 'GET',
-      url: finderDownloadUrl(item.path),
-      responseType: 'blob',
-      onProgress: (e) => {
-        if (!e.lengthComputable) return;
-        applyTransferProgress({ loaded: e.loaded, total: e.total, title: '下载中', name: downloadName, status: '下载中…' });
-      },
-    });
-    triggerBrowserDownload(blob, downloadName);
-    finishTransferModal(`已保存 ${downloadName}`);
-    return true;
-  } catch (err) {
-    if (String(err.message || '').toLowerCase().includes('cancel')) {
-      finishTransferModal('Cancelled', true);
-      return false;
-    }
-    finishTransferModal(err.message || '下载失败', true);
-    toast(err.message || '下载失败');
-    return false;
-  }
-}
-
-async function downloadSelectedFinderItem() {
-  const items = finderSelectedItems();
-  if (!items.length) return;
-  setFinderButtonBusy(dom.finderDownloadBtn, true);
-  try {
-    for (const item of items) {
-      const ok = await downloadFinderItem(item);
-      if (!ok) break;
-    }
-  } finally {
-    setFinderButtonBusy(dom.finderDownloadBtn, false);
-  }
-}
-
-async function readFinderPreview(item) {
-  let lastErr = null;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      const data = await API.get(`/finder/read?path=${encodeURIComponent(item.path)}`);
-      return data;
-    } catch (err) {
-      lastErr = err;
-      if (attempt < 2) {
-        await new Promise(r => setTimeout(r, 120 * attempt));
-        continue;
-      }
-    }
-  }
-  return { path: item.path, preview: null, reason: lastErr?.message || '文件读取失败', size: item.size, mtimeMs: item.mtimeMs };
-}
-
-async function openFileSheet(item) {
-  finderState.previewItem = item;
-  const preview = await readFinderPreview(item);
-  if (dom.fileSheetTitle) dom.fileSheetTitle.textContent = item.name;
-  if (dom.fileSheetMeta) {
-    dom.fileSheetMeta.innerHTML = `
-      <div class="file-meta-row"><span>类型</span><strong>${item.type === 'dir' ? '文件夹' : '文件'}</strong></div>
-      <div class="file-meta-row"><span>大小</span><strong>${formatBytes(item.size)}</strong></div>
-      <div class="file-meta-row"><span>修改时间</span><strong>${formatDateTime(item.mtimeMs)}</strong></div>
-      <div class="file-meta-row"><span>路径</span><strong>${escHtml(item.path)}</strong></div>
-    `;
-  }
-  if (dom.fileSheetPreview) {
-    dom.fileSheetPreview.textContent = preview.preview ?? preview.reason ?? '无法预览。';
-  }
-  state.fileSheetReturnFocus = document.activeElement;
-  dom.fileSheetBackdrop?.classList.remove('hidden');
-  requestAnimationFrame(() => dom.fileSheetBackdrop?.classList.add('open'));
-  dom.fileSheet?.classList.add('open');
-  dom.fileSheet?.classList.remove('hidden');
-  setElementSuppressed(dom.fileSheet, false);
-  setElementSuppressed(dom.fileSheetBackdrop, false);
-  focusFirstInteractive(dom.fileSheet);
-  if (dom.fileDownloadBtn) {
-    dom.fileDownloadBtn.textContent = item.type === 'dir' ? '下载文件夹' : '下载';
-    dom.fileDownloadBtn.onclick = async () => {
-      setFinderButtonBusy(dom.fileDownloadBtn, true);
-      try {
-        await downloadFinderItem(item);
-      } finally {
-        setFinderButtonBusy(dom.fileDownloadBtn, false);
-      }
-    };
-  }
-  dom.fileRenameBtn && (dom.fileRenameBtn.onclick = async () => {
-    const result = await appPrompt({
-      title: '重命名',
-      fields: [{ name: 'name', label: '新名称', value: item.name, required: true }],
-      confirmText: '重命名',
-    });
-    const newName = result?.name;
-    if (!newName || newName.trim() === item.name) return;
-    setFinderButtonBusy(dom.fileRenameBtn, true);
-    try {
-      await API.post('/finder/rename', { path: item.path, name: newName.trim() });
-      closeFileSheet();
-      await loadFinder(finderState.cwd);
-    } catch (err) {
-      toast(err.message || '重命名失败');
-    } finally {
-      setFinderButtonBusy(dom.fileRenameBtn, false);
-    }
-  });
-  dom.fileDeleteBtn && (dom.fileDeleteBtn.onclick = async () => {
-    const ok = await appConfirm({
-      title: '删除文件',
-      message: `确定删除“${item.name}”？此操作无法撤销。`,
-      confirmText: '删除',
-      danger: true,
-    });
-    if (!ok) return;
-    setFinderButtonBusy(dom.fileDeleteBtn, true);
-    try {
-      await API.post('/finder/delete', { paths: [item.path] });
-      closeFileSheet();
-      await loadFinder(finderState.cwd);
-    } catch (err) {
-      toast(err.message || '删除失败');
-    } finally {
-      setFinderButtonBusy(dom.fileDeleteBtn, false);
-    }
-  });
-}
-
-function closeFileSheet() {
-  dom.fileSheetBackdrop?.classList.remove('open');
-  dom.fileSheet?.classList.remove('open');
-  dom.fileSheet?.classList.add('hidden');
-  setElementSuppressed(dom.fileSheet, true);
-  window.setTimeout(() => {
-    if (!dom.fileSheetBackdrop?.classList.contains('open')) {
-      dom.fileSheetBackdrop?.classList.add('hidden');
-      setElementSuppressed(dom.fileSheetBackdrop, true);
-      restoreFocus(state.fileSheetReturnFocus);
-      state.fileSheetReturnFocus = null;
-    }
-  }, 180);
-  finderState.previewItem = null;
-}
-
-function updateFinderSelectionFromVisible(selectAll) {
-  const visible = finderVisibleItems();
-  for (const item of visible) {
-    if (selectAll) finderState.selected.add(item.path);
-    else finderState.selected.delete(item.path);
-  }
-  updateFinderSelectionBar();
-  renderFinderList();
-}
-
-async function uploadSingleFile(file, { totalBytes = 0, completedBytes = 0, index = 1, count = 1 } = {}) {
-  const url = `/api/finder/upload?path=${encodeURIComponent(finderState.cwd || '')}&name=${encodeURIComponent(file.name)}`;
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      const result = await xhrRequest({
-        method: 'POST',
-        url,
-        body: file,
-        headers: { 'Content-Type': 'application/octet-stream' },
-        onProgress: (e) => {
-          const loaded = completedBytes + (e.loaded || 0);
-          applyTransferProgress({
-            loaded,
-            total: totalBytes,
-            title: count > 1 ? `上传 ${index}/${count}` : '上传中',
-            name: file.name,
-            status: '上传中…',
-          });
-        },
-      });
-      return result;
-    } catch (err) {
-      if (String(err.message || '').toLowerCase().includes('cancel')) throw err;
-      if (attempt >= maxAttempts) throw err;
-      await new Promise(r => setTimeout(r, 200 * attempt));
-    }
-  }
-}
-
-async function finderUploadFiles(files) {
-  if (!files?.length) return;
-  if (transferState.active) {
-    toast('A transfer is already running');
-    return;
-  }
-  setFinderButtonBusy(dom.finderUploadBtn, true);
-  const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
-  let completedBytes = 0;
-  beginTransferModal({ mode: 'upload', title: files.length > 1 ? `上传 ${files.length} 个文件` : '上传中', name: files[0]?.name || '文件', total: totalBytes, cancelable: true });
-  try {
-    for (let i = 0; i < files.length; i += 1) {
-      const file = files[i];
-      await uploadSingleFile(file, { totalBytes, completedBytes, index: i + 1, count: files.length });
-      completedBytes += file.size || 0;
-      applyTransferProgress({
-        loaded: completedBytes,
-        total: totalBytes,
-        title: files.length > 1 ? `上传 ${i + 1}/${files.length}` : '上传中',
-        name: file.name,
-        status: '已上传',
-      });
-    }
-    await loadFinder(finderState.cwd);
-    finishTransferModal(`已上传 ${files.length} 个文件`);
-  } catch (err) {
-    if (String(err.message || '').toLowerCase().includes('cancel')) {
-      finishTransferModal('Cancelled', true);
-      return;
-    }
-    finishTransferModal(err.message || 'Upload failed', true);
-    throw err;
-  } finally {
-    setFinderButtonBusy(dom.finderUploadBtn, false);
-  }
-}
 
 function setActiveTab(tab) {
   if (!canAccessTab(tab)) tab = 'chat';
@@ -3902,38 +3111,12 @@ function setActiveTab(tab) {
     syncMobileComposerFocus(false);
   }
 
-  if (tab === 'stilltype') {
-    window.StilltypePage?.activate?.();
-  } else {
-    window.StilltypePage?.deactivate?.();
-  }
-
-  if (tab === 'control') {
-    refreshControlState();
-    refreshApps({ force: true });
-    if (controlPollTimer) clearInterval(controlPollTimer);
-    controlPollTimer = setInterval(refreshControlState, 3000);
-  } else {
-    if (controlPollTimer) { clearInterval(controlPollTimer); controlPollTimer = null; }
-  }
-
-  if (tab === 'finder') {
-    loadFinder(finderState.cwd || '');
-  }
   if (tab === 'memory') {
     loadMemories();
     refreshMemoryHealth();
   }
-  if (tab === 'terminal') {
-    ensureTerminalEmptyState();
-    syncTerminalCwdLabel();
-    setTimeout(() => document.getElementById('terminalInput')?.focus?.({ preventScroll: true }), 50);
-  }
   syncScrollToBottomButton();
 }
-
-// ── Control Panel ───────────────────────────────────────
-let controlPollTimer = null;
 
 function initControlPanel() {
   const tabNav = document.getElementById('tabNav');
@@ -3965,546 +3148,4 @@ function initControlPanel() {
 
   setActiveTab('chat');
 
-  document.getElementById('controlRefreshBtn')?.addEventListener('click', () => {
-    refreshControlState({ force: true, manual: true });
-  });
-
-  // Volume
-  const volSlider = document.getElementById('volSlider');
-  const muteBtn = document.getElementById('muteBtn');
-  if (volSlider) {
-    const volFill = document.getElementById('volFill');
-    syncSliderFill(volSlider, volFill);
-    volSlider.addEventListener('input', () => {
-      document.getElementById('volVal').textContent = volSlider.value;
-      syncSliderFill(volSlider, volFill);
-    });
-    volSlider.addEventListener('change', async () => {
-      setControlStatus('正在设置音量…', 'loading');
-      const ok = await ctrlPost('/control/volume', { volume: parseInt(volSlider.value) });
-      setControlStatus(ok ? '音量已更新' : '音量更新失败', ok ? 'ok' : 'error');
-    });
-  }
-  if (muteBtn) {
-    muteBtn.addEventListener('click', async () => {
-      const isMuted = muteBtn.classList.toggle('muted');
-      setControlBusy(muteBtn, true);
-      const ok = await ctrlPost('/control/volume/mute', { muted: isMuted });
-      if (!ok) muteBtn.classList.toggle('muted', !isMuted);
-      setControlStatus(ok ? (isMuted ? '已静音' : '已取消静音') : '静音切换失败', ok ? 'ok' : 'error');
-      setControlBusy(muteBtn, false);
-    });
-  }
-
-  // Brightness
-  const briSlider = document.getElementById('briSlider');
-  if (briSlider) {
-    const briFill = document.getElementById('briFill');
-    syncSliderFill(briSlider, briFill);
-    briSlider.addEventListener('input', () => {
-      document.getElementById('briVal').textContent = briSlider.value;
-      syncSliderFill(briSlider, briFill);
-    });
-    briSlider.addEventListener('change', async () => {
-      setControlStatus('正在设置亮度…', 'loading');
-      const ok = await ctrlPost('/control/brightness', { brightness: parseInt(briSlider.value) });
-      setControlStatus(ok ? '亮度已更新' : '亮度更新失败', ok ? 'ok' : 'error');
-    });
-  }
-
-  document.querySelectorAll('[data-control-preset]').forEach(btn => {
-    btn.addEventListener('click', () => applyControlPreset(btn.dataset.controlPreset, btn));
-  });
-
-  // Bluetooth
-  const btToggle = document.getElementById('btToggle');
-  if (btToggle) {
-    btToggle.addEventListener('change', async () => {
-      const previous = !btToggle.checked;
-      document.getElementById('btStatus').textContent = btToggle.checked ? '已开启' : '已关闭';
-      setControlHint('btHint', '切换中', 'loading');
-      btToggle.disabled = true;
-      const ok = await ctrlPost('/control/bluetooth', { enabled: btToggle.checked });
-      if (!ok) {
-        btToggle.checked = previous;
-        document.getElementById('btStatus').textContent = previous ? '已开启' : '已关闭';
-      }
-      setControlHint('btHint', ok ? '已同步' : '失败', ok ? 'ok' : 'error');
-      setControlStatus(ok ? '蓝牙状态已更新' : '蓝牙切换失败', ok ? 'ok' : 'error');
-      btToggle.disabled = false;
-    });
-  }
-
-  // Apps
-  const appNameInput = document.getElementById('appNameInput');
-  if (appNameInput) {
-    document.getElementById('appOpenBtn')?.addEventListener('click', async () => {
-      const name = appNameInput.value.trim();
-      if (!name) return;
-      const btn = document.getElementById('appOpenBtn');
-      setControlBusy(btn, true, '打开中…');
-      const ok = await ctrlPost('/control/apps/open', { app: name });
-      appNameInput.value = '';
-      setControlBusy(btn, false);
-      setAppStatus(ok ? `已发送打开 ${name} 的请求。` : `打开 ${name} 失败。`, ok ? '' : 'error');
-      refreshApps({ force: true });
-    });
-    document.getElementById('appCloseBtn')?.addEventListener('click', async () => {
-      const name = appNameInput.value.trim();
-      if (!name) return;
-      const btn = document.getElementById('appCloseBtn');
-      setControlBusy(btn, true, '关闭中…');
-      const ok = await ctrlPost('/control/apps/close', { app: name });
-      appNameInput.value = '';
-      setControlBusy(btn, false);
-      setAppStatus(ok ? `已发送关闭 ${name} 的请求。` : `关闭 ${name} 失败。`, ok ? '' : 'error');
-      refreshApps({ force: true });
-    });
-    appNameInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') document.getElementById('appOpenBtn')?.click();
-    });
-  }
-  document.getElementById('appRefreshBtn')?.addEventListener('click', () => refreshApps({ force: true }));
-  document.getElementById('appSearchInput')?.addEventListener('input', (e) => {
-    controlAppState.query = e.target.value.trim();
-    renderApps();
-  });
-
-  // Terminal
-  const terminalInput = document.getElementById('terminalInput');
-  if (terminalInput) {
-    ensureTerminalEmptyState();
-    syncTerminalCwdLabel();
-    document.getElementById('terminalRunBtn')?.addEventListener('click', runTerminalCommand);
-    document.getElementById('terminalClearBtn')?.addEventListener('click', clearTerminalOutput);
-    document.getElementById('terminalCopyBtn')?.addEventListener('click', copyTerminalOutput);
-    document.getElementById('terminalHomeBtn')?.addEventListener('click', resetTerminalCwd);
-    terminalInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        runTerminalCommand();
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        clearTerminalOutput();
-      } else if (e.key === 'ArrowUp') {
-        const command = getTerminalHistory(-1);
-        if (command !== null) {
-          e.preventDefault();
-          terminalInput.value = command;
-          terminalInput.setSelectionRange(command.length, command.length);
-        }
-      } else if (e.key === 'ArrowDown') {
-        const command = getTerminalHistory(1);
-        if (command !== null) {
-          e.preventDefault();
-          terminalInput.value = command;
-          terminalInput.setSelectionRange(command.length, command.length);
-        }
-      }
-    });
-  }
-}
-
-function setControlStatus(text, tone = '') {
-  const status = document.getElementById('controlStatus');
-  const strip = status?.closest('.control-status-strip');
-  if (!status || !strip) return;
-  status.textContent = text;
-  strip.dataset.tone = tone;
-}
-
-function setControlLastRefresh(date = new Date()) {
-  const el = document.getElementById('controlLastRefresh');
-  if (!el) return;
-  const text = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  el.textContent = `上次刷新 ${text}`;
-}
-
-function setControlHint(id, text, tone = '') {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = text;
-  el.dataset.tone = tone;
-}
-
-function setControlBusy(btn, busy, busyText = '') {
-  if (!btn) return;
-  if (!btn.dataset.idleHtml) btn.dataset.idleHtml = btn.innerHTML;
-  btn.disabled = Boolean(busy);
-  btn.classList.toggle('is-busy', Boolean(busy));
-  if (busy && busyText) btn.textContent = busyText;
-  if (!busy) btn.innerHTML = btn.dataset.idleHtml;
-}
-
-function setControlSlider(kind, value) {
-  const slider = document.getElementById(kind === 'volume' ? 'volSlider' : 'briSlider');
-  const fill = document.getElementById(kind === 'volume' ? 'volFill' : 'briFill');
-  const label = document.getElementById(kind === 'volume' ? 'volVal' : 'briVal');
-  if (!slider) return;
-  slider.value = String(value);
-  if (label) label.textContent = String(value);
-  syncSliderFill(slider, fill);
-}
-
-async function applyControlPreset(value, btn) {
-  if (!value) return;
-  const [kind, rawAmount] = value.split(':');
-  const amount = Math.max(0, Math.min(100, parseInt(rawAmount, 10) || 0));
-  if (kind !== 'volume' && kind !== 'brightness') return;
-  setControlSlider(kind, amount);
-  setControlBusy(btn, true);
-  setControlStatus(`正在设置${kind === 'volume' ? '音量' : '亮度'}…`, 'loading');
-  const ok = await ctrlPost(kind === 'volume' ? '/control/volume' : '/control/brightness', {
-    [kind === 'volume' ? 'volume' : 'brightness']: amount,
-  });
-  setControlStatus(ok ? `${kind === 'volume' ? '音量' : '亮度'}已更新` : `${kind === 'volume' ? '音量' : '亮度'}更新失败`, ok ? 'ok' : 'error');
-  setControlBusy(btn, false);
-}
-
-function setTerminalStatus(text, tone = '') {
-  const el = document.getElementById('terminalStatus');
-  if (!el) return;
-  el.textContent = text;
-  el.dataset.tone = tone;
-  const pill = el.closest('.terminal-status-pill');
-  if (pill) pill.dataset.tone = tone;
-}
-
-function setTerminalBusy(busy) {
-  controlUiState.terminalRunning = Boolean(busy);
-  setControlBusy(document.getElementById('terminalRunBtn'), busy, '运行中…');
-  const input = document.getElementById('terminalInput');
-  if (input) input.disabled = Boolean(busy);
-}
-
-function normalizeTerminalCwd(cwd) {
-  const value = String(cwd || '').trim();
-  return value || '~';
-}
-
-function syncTerminalCwdLabel(cwd = controlUiState.terminalCwd) {
-  const display = normalizeTerminalCwd(cwd);
-  controlUiState.terminalCwd = display;
-  const cwdEl = document.getElementById('terminalCwd');
-  const promptEl = document.getElementById('terminalPromptCwd');
-  if (cwdEl) cwdEl.textContent = display;
-  if (promptEl) promptEl.textContent = display;
-}
-
-function resetTerminalCwd() {
-  syncTerminalCwdLabel('~');
-  appendTerminalEntry('meta', 'cwd reset to home');
-  setTerminalStatus('已回到 Home', 'ok');
-  document.getElementById('terminalInput')?.focus?.({ preventScroll: true });
-}
-
-function addTerminalHistory(command) {
-  if (!command) return;
-  const history = controlUiState.terminalHistory;
-  if (history[history.length - 1] !== command) history.push(command);
-  if (history.length > 30) history.shift();
-  controlUiState.terminalHistoryIndex = history.length;
-}
-
-function getTerminalHistory(direction) {
-  const history = controlUiState.terminalHistory;
-  if (!history.length) return null;
-  const next = Math.max(0, Math.min(history.length, controlUiState.terminalHistoryIndex + direction));
-  controlUiState.terminalHistoryIndex = next;
-  return next === history.length ? '' : history[next];
-}
-
-function ensureTerminalEmptyState() {
-  const output = document.getElementById('terminalOutput');
-  if (!output) return;
-  if (!output.children.length) {
-    const empty = document.createElement('div');
-    empty.className = 'terminal-empty';
-    empty.textContent = '暂无命令输出。';
-    output.appendChild(empty);
-  }
-}
-
-function clearTerminalOutput() {
-  const output = document.getElementById('terminalOutput');
-  if (!output) return;
-  output.innerHTML = '';
-  ensureTerminalEmptyState();
-  setTerminalStatus('已清空', 'ok');
-}
-
-async function copyTerminalOutput() {
-  const output = document.getElementById('terminalOutput');
-  const text = output?.innerText?.trim() || '';
-  if (!text || output?.querySelector('.terminal-empty')) {
-    toast('没有可复制的输出');
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    toast('已复制终端输出');
-    setTerminalStatus('输出已复制', 'ok');
-  } catch {
-    toast('复制失败');
-    setTerminalStatus('复制失败', 'error');
-  }
-}
-
-function appendTerminalEntry(kind, text) {
-  const output = document.getElementById('terminalOutput');
-  if (!output) return;
-  const empty = output.querySelector('.terminal-empty');
-  if (empty) empty.remove();
-  const row = document.createElement('div');
-  row.className = `terminal-line terminal-line-${kind}`;
-  row.innerHTML = text;
-  output.appendChild(row);
-  output.scrollTop = output.scrollHeight;
-}
-
-async function runTerminalCommand() {
-  const input = document.getElementById('terminalInput');
-  if (!input) return;
-  if (controlUiState.terminalRunning) return;
-  const command = input.value.trim();
-  if (!command) return;
-
-  if (command === 'clear') {
-    clearTerminalOutput();
-    input.value = '';
-    return;
-  }
-
-  const cwdBeforeRun = normalizeTerminalCwd(controlUiState.terminalCwd);
-  appendTerminalEntry('command', `<span class="terminal-prefix">${escHtml(cwdBeforeRun)} $</span> ${escHtml(command)}`);
-  addTerminalHistory(command);
-  input.value = '';
-  setTerminalBusy(true);
-  setTerminalStatus('运行中…', 'loading');
-  const started = performance.now();
-  const res = await ctrlPost('/control/terminal/run', {
-    command,
-    cwd: cwdBeforeRun === '~' ? '' : cwdBeforeRun,
-  });
-  const elapsed = ((performance.now() - started) / 1000).toFixed(1);
-  if (!res) {
-    appendTerminalEntry('error', '命令运行失败。');
-    appendTerminalEntry('meta', `failed · ${elapsed}s`);
-    setTerminalStatus(`运行失败 · ${elapsed}s`, 'error');
-    setTerminalBusy(false);
-    return;
-  }
-  if (res.stdout) appendTerminalEntry('output', escHtml(res.stdout).replace(/\n/g, '<br>'));
-  if (res.stderr) appendTerminalEntry('error', escHtml(res.stderr).replace(/\n/g, '<br>'));
-  if (res.cwd) syncTerminalCwdLabel(res.cwd);
-  const code = res.code ?? 0;
-  appendTerminalEntry('meta', `exit ${escHtml(String(code))} · ${elapsed}s`);
-  setTerminalStatus(`退出码 ${code} · ${elapsed}s`, Number(code) === 0 ? 'ok' : 'error');
-  setTerminalBusy(false);
-}
-
-async function ctrlPost(path, body) {
-  try {
-    const res = await fetch(`/api${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${state.token}` },
-      body: JSON.stringify(body),
-    });
-    const text = await res.text();
-    const data = text ? (() => { try { return JSON.parse(text); } catch { return { raw: text }; } })() : {};
-    return res.ok && !data?.error ? data : null;
-  } catch (e) { return null; }
-}
-
-async function ctrlGet(path) {
-  try {
-    const r = await fetch(`/api${path}`, { headers: { 'Authorization': `Bearer ${state.token}` } });
-    const data = await r.json();
-    return r.ok && !data?.error ? data : null;
-  } catch (e) { return null; }
-}
-
-async function refreshControlState({ force = false, manual = false } = {}) {
-  if (controlUiState.refreshing && !force) return;
-  controlUiState.refreshing = true;
-  const refreshBtn = document.getElementById('controlRefreshBtn');
-  setControlBusy(refreshBtn, true, '刷新中…');
-  setControlStatus('正在读取控制状态…', 'loading');
-  let okCount = 0;
-
-  const vol = await ctrlGet('/control/volume');
-  if (vol) {
-    okCount += 1;
-    setControlSlider('volume', Number(vol.volume) || 0);
-    const m = document.getElementById('muteBtn');
-    if (m) m.classList.toggle('muted', Boolean(vol.muted));
-  }
-
-  const bri = await ctrlGet('/control/brightness');
-  if (bri) {
-    okCount += 1;
-    setControlSlider('brightness', Number(bri.brightness) || 0);
-  }
-
-  const mem = await ctrlGet('/control/memory');
-  if (mem) {
-    okCount += 1;
-    const percent = Math.max(0, Math.min(100, Number(mem.percent) || 0));
-    const usedGB = (mem.used / 1073741824).toFixed(1);
-    const freeGB = (mem.available / 1073741824).toFixed(1);
-    const totalGB = (mem.total / 1073741824).toFixed(0);
-    const p = document.getElementById('memPct'); if (p) p.textContent = `${percent.toFixed(1)}%`;
-    const u = document.getElementById('mUsed'); if (u) u.textContent = usedGB + ' GB';
-    const f = document.getElementById('mFree'); if (f) f.textContent = freeGB + ' GB';
-    const t = document.getElementById('mTotal'); if (t) t.textContent = totalGB + ' GB';
-    const ring = document.getElementById('memRing');
-    if (ring) ring.style.strokeDashoffset = 207.3 - (percent / 100) * 207.3;
-    const memCard = document.getElementById('memoryCard');
-    if (memCard) memCard.classList.toggle('is-high-memory', percent >= 82);
-    setControlHint('memLoadTag', percent >= 82 ? '偏高' : '正常', percent >= 82 ? 'warn' : 'ok');
-  } else {
-    setControlHint('memLoadTag', '读取失败', 'error');
-  }
-
-  const bt = await ctrlGet('/control/bluetooth');
-  if (bt) {
-    okCount += 1;
-    const tgl = document.getElementById('btToggle');
-    const st = document.getElementById('btStatus');
-    if (tgl) tgl.checked = Boolean(bt.enabled);
-    if (st) st.textContent = bt.enabled ? '已开启' : '已关闭';
-    setControlHint('btHint', '已同步', 'ok');
-  } else {
-    setControlHint('btHint', '读取失败', 'error');
-  }
-
-  const vpn = await ctrlGet('/control/vpn');
-  const c = document.getElementById('vpnList');
-  if (vpn && c) {
-    okCount += 1;
-    if (!vpn.vpns?.length) {
-      c.innerHTML = '<span class="vpn-empty">未发现 VPN 配置</span>';
-    } else {
-      c.innerHTML = '';
-      for (const vp of vpn.vpns) {
-        const item = document.createElement('div');
-        item.className = 'vpn-item';
-        item.innerHTML = `<span class="vpn-dot${vp.connected ? ' on' : ''}"></span><span class="vpn-name">${escHtml(vp.name)}</span><button class="vpn-connect-btn${vp.connected ? ' connected' : ''}" type="button">${vp.connected ? '断开' : '连接'}</button>`;
-        item.querySelector('button').addEventListener('click', async function() {
-          setControlBusy(this, true, vp.connected ? '断开中…' : '连接中…');
-          const ok = await ctrlPost('/control/vpn/toggle', { name: vp.name, connect: !vp.connected });
-          setControlStatus(ok ? 'VPN 操作已发送' : 'VPN 操作失败', ok ? 'ok' : 'error');
-          setTimeout(() => refreshControlState({ force: true }), 1200);
-        });
-        c.appendChild(item);
-      }
-    }
-  } else if (c) {
-    c.innerHTML = '<span class="vpn-empty vpn-error">无法读取 VPN 配置</span>';
-  }
-
-  await refreshApps({ force: manual });
-  if (okCount > 0) {
-    setControlStatus('控制服务已连接', 'ok');
-    setControlLastRefresh();
-  } else {
-    setControlStatus('控制服务无响应', 'error');
-  }
-  setControlBusy(refreshBtn, false);
-  controlUiState.refreshing = false;
-}
-
-function normalizeRunningApps(payload) {
-  const items = Array.isArray(payload?.apps) ? payload.apps : [];
-  const seen = new Set();
-  const normalized = [];
-  for (const item of items) {
-    const app = typeof item === 'string'
-      ? { name: item }
-      : { name: item?.name || item?.app || '', pid: item?.pid || null, frontmost: Boolean(item?.frontmost) };
-    app.name = String(app.name || '').trim();
-    if (!app.name || seen.has(app.name)) continue;
-    seen.add(app.name);
-    normalized.push(app);
-  }
-  return normalized.sort((a, b) => {
-    if (a.frontmost !== b.frontmost) return a.frontmost ? -1 : 1;
-    return a.name.localeCompare(b.name, 'zh-Hans-CN');
-  });
-}
-
-function visibleRunningApps() {
-  const query = (controlAppState.query || '').toLowerCase();
-  if (!query) return controlAppState.apps;
-  return controlAppState.apps.filter(app => app.name.toLowerCase().includes(query));
-}
-
-function setAppStatus(text, tone = '') {
-  const status = document.getElementById('appStatus');
-  if (!status) return;
-  status.textContent = text;
-  status.classList.toggle('is-error', tone === 'error');
-  status.classList.toggle('is-loading', tone === 'loading');
-}
-
-function renderApps() {
-  const container = document.getElementById('appChips');
-  if (!container) return;
-  container.innerHTML = '';
-
-  const apps = visibleRunningApps();
-  if (!apps.length) {
-    setAppStatus(controlAppState.query ? '没有匹配的运行中应用。' : '未发现正在运行的前台应用。');
-    return;
-  }
-
-  const frontmost = apps.find(app => app.frontmost);
-  setAppStatus(frontmost ? `当前：${frontmost.name} · 共 ${apps.length} 个应用` : `正在运行 ${apps.length} 个前台应用`);
-  for (const app of apps) {
-    const item = document.createElement('div');
-    item.className = `running-app-item${app.frontmost ? ' is-frontmost' : ''}`;
-    item.innerHTML = `
-      <div class="running-app-main">
-        <span class="running-app-dot"></span>
-        <span class="running-app-name">${escHtml(app.name)}</span>
-        ${app.frontmost ? '<span class="running-app-front">当前</span>' : ''}
-      </div>
-      <button class="running-app-close" type="button" aria-label="关闭 ${escHtml(app.name)}"><span class="running-app-close-mark">×</span><span>关闭</span></button>
-    `;
-    item.querySelector('.running-app-close').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const btn = e.currentTarget;
-      setControlBusy(btn, true, '关闭中…');
-      const ok = await ctrlPost('/control/apps/close', { app: app.name });
-      setAppStatus(ok ? `已发送关闭 ${app.name} 的请求。` : `关闭 ${app.name} 失败。`, ok ? '' : 'error');
-      setTimeout(() => refreshApps({ force: true }), 700);
-    });
-    container.appendChild(item);
-  }
-}
-
-async function refreshApps({ force = false } = {}) {
-  const now = Date.now();
-  if (!force && controlAppState.loading) return;
-  if (!force && now - controlAppState.lastLoadedAt < controlAppState.minRefreshMs) return;
-
-  controlAppState.loading = true;
-  const refreshBtn = document.getElementById('appRefreshBtn');
-  setControlBusy(refreshBtn, true, '扫描中…');
-  setAppStatus('正在扫描运行中的应用…', 'loading');
-  try {
-    const apps = await ctrlGet('/control/apps');
-    if (!apps) {
-      setAppStatus('无法读取运行中应用。', 'error');
-      return;
-    }
-    controlAppState.apps = normalizeRunningApps(apps);
-    controlAppState.lastLoadedAt = Date.now();
-    renderApps();
-  } catch {
-    setAppStatus('无法读取运行中应用。', 'error');
-  } finally {
-    controlAppState.loading = false;
-    setControlBusy(refreshBtn, false);
-  }
 }

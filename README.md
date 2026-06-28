@@ -1,5 +1,9 @@
 # AI Chat
 
+> [!IMPORTANT]
+> **服务器专用版本：`server/aichatupdated-20260628`**
+> 此分支仅用于 Azure 上的 `aichat.dkz12345.com` 生产服务。桌面本地版本请继续使用 `main`；部署时必须保留服务器现有的 `.env`、`providers.json` 和 `data/`。
+
 A self-hosted AI chat web app with streaming responses, Markdown and code rendering, chat history, local memory retrieval, optional web search, and admin-only desktop control and file management tools.
 
 ## Features
@@ -78,7 +82,7 @@ MIT
 
 ## 服务器部署 (Server Chat-Only)
 
-`deploy/server-chat-only` 分支是专为服务器部署制作的精简版本：只保留 AI 聊天功能，禁用本地 Mac 控制、终端、文件管理等。
+`server/aichatupdated-20260628` 分支是专为服务器部署制作的精简版本：只保留 AI 聊天功能，禁用本地 Mac 控制、终端、文件管理等。
 
 ### 功能差异
 
@@ -120,7 +124,7 @@ sudo mkdir -p /opt/apps
 sudo chown -R $USER:$USER /opt/apps
 git clone https://github.com/Leo-learner/ai-chat.git /opt/apps/ai-chat
 cd /opt/apps/ai-chat
-git checkout deploy/server-chat-only
+git checkout server/aichatupdated-20260628
 
 # 2. 安装依赖
 npm install
@@ -165,11 +169,11 @@ sudo systemctl daemon-reload
 sudo systemctl enable ai-chat
 sudo systemctl start ai-chat
 
-# 5. Nginx 反向代理 (chat.dkz12345.com)
-sudo tee /etc/nginx/sites-available/chat.dkz12345.com << 'NGX'
+# 5. Nginx 反向代理 (aichat.dkz12345.com)
+sudo tee /etc/nginx/sites-available/aichat.dkz12345.com << 'NGX'
 server {
     listen 80;
-    server_name chat.dkz12345.com;
+    server_name aichat.dkz12345.com;
     client_max_body_size 50M;
     location / {
         proxy_pass http://127.0.0.1:3200;
@@ -184,11 +188,11 @@ server {
 }
 NGX
 
-sudo ln -sf /etc/nginx/sites-available/chat.dkz12345.com /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/aichat.dkz12345.com /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 # 6. HTTPS
-sudo certbot --nginx -d chat.dkz12345.com
+sudo certbot --nginx -d aichat.dkz12345.com
 ```
 
 ### 数据迁移

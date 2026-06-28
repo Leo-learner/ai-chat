@@ -620,6 +620,62 @@ app.get('/api/auth/me', authRequired, (req, res) => {
   res.json({ user: req.user });
 });
 
+// PATCH /api/auth/profile — self-service username / password change.
+// Requires the current password for ANY change. Passwords are bcrypt-hashed and
+// never returned. Wrong current password returns 400 (not 401) so the client's
+// global 401→logout interceptor doesn't sign the user out on a typo.
+app.patch('/api/auth/profile', authRequired, authLimiter, async (req, res) => {
+  try {
+    const { currentPassword, newUsername, newPassword } = req.body || {};
+
+    if (!currentPassword || typeof currentPassword !== 'string') {
+      return res.status(400).json({ error: '请输入当前密码' });
+    }
+
+    const wantsUsername = typeof newUsername === 'string' && newUsername.trim().length > 0;
+    const wantsPassword = typeof newPassword === 'string' && newPassword.length > 0;
+    if (!wantsUsername && !wantsPassword) {
+      return res.status(400).json({ error: '没有需要修改的内容' });
+    }
+
+    // Verify current password against the stored hash.
+    const account = userQueries.findWithPasswordById.get(req.user.id);
+    if (!account) return res.status(404).json({ error: 'User not found' });
+    const valid = await bcrypt.compare(currentPassword, account.password);
+    if (!valid) return res.status(400).json({ error: '当前密码不正确' });
+
+    if (wantsUsername) {
+      const next = newUsername.trim();
+      if (next.length < 2 || next.length > 30) {
+        return res.status(400).json({ error: '用户名需为 2-30 个字符' });
+      }
+      if (next !== account.username) {
+        const taken = userQueries.findByUsername.get(next);
+        if (taken && taken.id !== account.id) {
+          return res.status(409).json({ error: '该用户名已被占用' });
+        }
+        userQueries.updateUsername.run(next, account.id);
+      }
+    }
+
+    if (wantsPassword) {
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: '新密码至少 6 位字符' });
+      }
+      const hashed = await bcrypt.hash(newPassword, 12);
+      userQueries.updatePassword.run(hashed, account.id);
+    }
+
+    // Return refreshed safe user + a new token (username is embedded in the JWT).
+    const user = userQueries.findById.get(account.id);
+    const token = signToken(user);
+    res.json({ user, token });
+  } catch (err) {
+    req.log.error('Profile update error:', err);
+    res.status(500).json({ error: 'Profile update failed' });
+  }
+});
+
 // ── Model Routes ────────────────────────────────────────
 
 // GET /api/models
