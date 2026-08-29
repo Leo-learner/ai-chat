@@ -101,9 +101,9 @@ MIT
 # 必需
 APP_MODE=server-chat-only
 JWT_SECRET=<your-strong-random-string>
-NVIDIA_API_KEY=<your-nvidia-api-key>
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=moonshotai/kimi-k2.6
+OPENROUTER_API_KEY=<your-openrouter-api-key>
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEFAULT_CHAT_MODEL=openrouter/free
 
 # 可选
 PORT=3200
@@ -137,9 +137,9 @@ NODE_ENV=production
 HOST=127.0.0.1
 PORT=3200
 JWT_SECRET=<random-string>
-NVIDIA_API_KEY=<your-key>
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=moonshotai/kimi-k2.6
+OPENROUTER_API_KEY=<your-key>
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEFAULT_CHAT_MODEL=openrouter/free
 ADMIN_USERNAME=<your-username>
 DB_PATH=/opt/apps/ai-chat/data/chat.db
 EOF

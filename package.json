@@ -12,9 +12,10 @@
     "prestart": "npm run build",
     "start": "bash scripts/run-node-abi127.sh server.js",
     "dev": "SERVE_DIST=0 bash scripts/run-node-abi127.sh --watch server.js",
-    "check": "bash scripts/run-node-abi127.sh --check server.js && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check public/app.js && bash scripts/run-node-abi127.sh --check scripts/smoke-auth.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh scripts/check-css.js",
+    "check": "bash scripts/run-node-abi127.sh --check server.js && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check public/app.js && bash scripts/run-node-abi127.sh --check scripts/smoke-auth.js && bash scripts/run-node-abi127.sh --check scripts/smoke-provider-routing.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh scripts/check-css.js",
     "smoke:startup": "bash scripts/run-node-abi127.sh scripts/smoke-startup.js",
-    "smoke:auth": "bash scripts/run-node-abi127.sh scripts/smoke-auth.js"
+    "smoke:auth": "bash scripts/run-node-abi127.sh scripts/smoke-auth.js",
+    "smoke:provider": "bash scripts/run-node-abi127.sh scripts/smoke-provider-routing.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

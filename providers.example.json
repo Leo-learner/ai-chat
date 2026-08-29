@@ -1,13 +1,13 @@
 [
   {
-    "id": "nvidia",
-    "name": "NVIDIA (Kimi K2.6)",
+    "id": "openrouter",
+    "name": "OpenRouter Free Router",
     "type": "openai",
     "models": [
-      "moonshotai/kimi-k2.6"
+      "openrouter/free"
     ],
-    "defaultModel": "moonshotai/kimi-k2.6",
-    "baseURL": "{NVIDIA_BASE_URL}",
+    "defaultModel": "openrouter/free",
+    "baseURL": "{OPENROUTER_BASE_URL}",
     "apiKey": ""
   },
   {
