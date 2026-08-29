@@ -1256,7 +1256,7 @@ if (IS_SERVER_CHAT_ONLY) {
 
 // ── SPA fallback ────────────────────────────────────────
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(shouldServeDist ? distPath : rawPublicPath, 'index.html'));
 });
 
 // ── Start ───────────────────────────────────────────────

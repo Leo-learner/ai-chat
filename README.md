@@ -4,17 +4,16 @@
 > **服务器专用版本：`server/aichatupdated-20260628`**
 > 此分支仅用于 Azure 上的 `aichat.dkz12345.com` 生产服务。桌面本地版本请继续使用 `main`；部署时必须保留服务器现有的 `.env`、`providers.json` 和 `data/`。
 
-A self-hosted AI chat web app with streaming responses, Markdown and code rendering, chat history, local memory retrieval, optional web search, and admin-only desktop control and file management tools.
+A self-hosted AI chat web app with streaming responses, Markdown and code rendering, persistent chat history, optional web search, and a responsive production UI.
 
 ## Features
 
 - AI chat with SSE streaming, stop generation, continue generation, regenerate, message copy, and code-block copy.
 - Conversation history with create, switch, rename, and delete support.
-- Local memory library powered by Ollama embeddings, so memory retrieval can stay on your machine.
 - Context management with token-budget trimming, older-message summarization, and relevant memory injection.
 - Optional web search through Tavily, disabled by default.
-- Admin-only tools for remote control, terminal access, and Finder-style file management.
-- Responsive UI modes for desktop browsers, mobile browsers, Android WebView, and a macOS WebView client.
+- Light, dark, and system themes plus account settings.
+- Responsive UI for desktop and mobile browsers.
 
 ## Tech Stack
 
@@ -58,6 +57,7 @@ npm run check
 npm run build
 npm run smoke:startup
 npm run smoke:auth
+npm run smoke:provider
 ```
 
 ## Configuration
@@ -86,7 +86,7 @@ MIT
 
 ### 功能差异
 
-| 功能 | 本地版 (main) | 服务器版 (deploy/server-chat-only) |
+| 功能 | 本地版 (main) | 服务器版 (server/aichatupdated-20260628) |
 |------|:---:|:---:|
 | AI 对话 | ✅ | ✅ |
 | 记忆库 | ✅ | ❌ (预留 API，未来迁移云端 embedding) |

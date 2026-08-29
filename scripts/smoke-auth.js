@@ -11,6 +11,7 @@ require('dotenv').config({ path: path.join(os.homedir(), '.ai-chat', 'secrets.en
 const PORT = Number(process.env.PORT || 3000);
 const SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'chat.db');
+const SERVER_CHAT_ONLY = process.env.APP_MODE === 'server-chat-only';
 
 if (!process.env.JWT_SECRET || SECRET === 'dev-secret-change-me') {
   console.error('JWT_SECRET is required for smoke:auth. Put it in ~/.ai-chat/secrets.env or export it before running this check.');
@@ -61,8 +62,9 @@ async function main() {
 
   for (const endpoint of endpoints) {
     const anonymousStatus = await request(endpoint);
-    if (anonymousStatus !== 401) {
-      throw new Error(`${endpoint.method} ${endpoint.path} expected anonymous 401, got ${anonymousStatus}`);
+    const expectedAnonymous = SERVER_CHAT_ONLY ? 403 : 401;
+    if (anonymousStatus !== expectedAnonymous) {
+      throw new Error(`${endpoint.method} ${endpoint.path} expected anonymous ${expectedAnonymous}, got ${anonymousStatus}`);
     }
     if (userToken) {
       const userStatus = await request({ ...endpoint, token: userToken });

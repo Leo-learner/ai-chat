@@ -1,27 +1,7 @@
-const APP_MODE_STORAGE_KEY = 'ai_chat_app_mode';
 const THEME_PREFERENCE_STORAGE_KEY = 'ai_chat_theme_preference';
 const THEME_CHOICES = ['system', 'light', 'dark'];
-const urlParams = new URLSearchParams(window.location.search);
-const requestedAppMode = urlParams.get('app');
-const isMacOSAppMode = requestedAppMode === 'macos' || urlParams.get('client') === 'macos';
-const isLikelyAndroidClient = /Android/i.test(navigator.userAgent || '');
-const isAndroidAppMode = requestedAppMode === 'android'
-  || (!requestedAppMode && isLikelyAndroidClient && localStorage.getItem(APP_MODE_STORAGE_KEY) === 'android');
-if (requestedAppMode === 'android') {
-  localStorage.setItem(APP_MODE_STORAGE_KEY, 'android');
-} else if (isMacOSAppMode) {
-  localStorage.removeItem(APP_MODE_STORAGE_KEY);
-}
-document.body?.classList.toggle('app-mode', isAndroidAppMode);
-document.body?.classList.toggle('client-macos', isMacOSAppMode);
-if (isMacOSAppMode) document.documentElement.dataset.client = 'macos';
-
 const DEFAULT_CHAT_MODEL = '';
 const ALLOWED_CHAT_MODELS = [];
-
-const APP_MODE_META = document.querySelector('meta[name="app-mode"]')?.content || '';
-const IS_SERVER_CHAT_ONLY = APP_MODE_META === 'server-chat-only';
-document.body?.classList.toggle('server-chat-only', IS_SERVER_CHAT_ONLY);
 const API_DEFAULT_TIMEOUT_MS = 25000;
 const CHAT_DRAFT_STORAGE_PREFIX = 'ai_chat_draft:';
 const MESSAGE_RENDER_LIMIT = 60;
@@ -49,121 +29,40 @@ const state = {
   currentChat: null,
   messages: [],
   models: [],
+  defaultModel: '',
   streaming: false,
   streamAbort: null,
   activeRequestId: 0,
-  activeTab: 'chat',
-  isAppMode: isAndroidAppMode,
   batchMode: false,
   batchSelected: new Set(),
   chatSearchQuery: '',
   stoppedDraft: null,
   webSearchEnabled: false,
   webSearchAvailable: false,
-  isMacOSClient: isMacOSAppMode,
   messageRenderExpanded: false,
   chatListLoading: false,
   sidebarReturnFocus: null,
   moreReturnFocus: null,
-  fileSheetReturnFocus: null,
   activeDialog: null,
   themePreference: getStoredThemePreference(),
 };
 
-const dom = {
-  authView: document.getElementById('authView'),
-  chatView: document.getElementById('chatView'),
-  loginForm: document.getElementById('loginForm'),
-  registerForm: document.getElementById('registerForm'),
-  loginError: document.getElementById('loginError'),
-  regError: document.getElementById('regError'),
-  loginUser: document.getElementById('loginUser'),
-  loginPass: document.getElementById('loginPass'),
-  regUser: document.getElementById('regUser'),
-  regEmail: document.getElementById('regEmail'),
-  regPass: document.getElementById('regPass'),
-  tabs: document.querySelectorAll('.auth-tab'),
-  logoutBtn: document.getElementById('logoutBtn'),
-  newChatBtn: document.getElementById('newChatBtn'),
-  mobileMoreBtn: document.getElementById('mobileMoreBtn'),
-  mobileMoreMenu: document.getElementById('mobileMoreMenu'),
-  mobileMoreBackdrop: document.getElementById('mobileMoreBackdrop'),
-  closeMobileMoreBtn: document.getElementById('closeMobileMoreBtn'),
-  mobileNewChatBtn: document.getElementById('mobileNewChatBtn'),
-  mobileSidebarBtn: document.getElementById('mobileSidebarBtn'),
-  sidebarBackdrop: document.getElementById('sidebarBackdrop'),
-  mobileModelBtn: document.getElementById('mobileModelBtn'),
-  mobileCurrentModelLabel: document.getElementById('mobileCurrentModelLabel'),
-  chatList: document.getElementById('chatList'),
-  chatSearchInput: document.getElementById('chatSearchInput'),
-  chatSearchEmpty: document.getElementById('chatSearchEmpty'),
-  batchSelectBtn: document.getElementById('batchSelectBtn'),
-  batchActionBar: document.getElementById('batchActionBar'),
-  batchCount: document.getElementById('batchCount'),
-  batchDeleteBtn: document.getElementById('batchDeleteBtn'),
-  batchCancelBtn: document.getElementById('batchCancelBtn'),
-  chatTitleInput: document.getElementById('chatTitleInput'),
-  userAvatar: document.getElementById('userAvatar'),
-  userName: document.getElementById('userName'),
-  emptyState: document.getElementById('emptyState'),
-  emptyModels: document.getElementById('emptyModels'),
-  messagesContainer: document.getElementById('messagesContainer'),
-  inputArea: document.getElementById('inputArea'),
-  tabMemory: document.getElementById('tabMemory'),
-  tabStilltype: document.getElementById('tabStilltype'),
-  memoryHealth: document.getElementById('memoryHealth'),
-  memoryComposeToggle: document.getElementById('memoryComposeToggle'),
-  memoryComposeBody: document.getElementById('memoryComposeBody'),
-  memoryTitleInput: document.getElementById('memoryTitleInput'),
-  memoryContentInput: document.getElementById('memoryContentInput'),
-  memoryEnabledInput: document.getElementById('memoryEnabledInput'),
-  memorySaveBtn: document.getElementById('memorySaveBtn'),
-  memorySearchInput: document.getElementById('memorySearchInput'),
-  memoryFilterSelect: document.getElementById('memoryFilterSelect'),
-  memoryRefreshBtn: document.getElementById('memoryRefreshBtn'),
-  memoryList: document.getElementById('memoryList'),
-  memoryEmpty: document.getElementById('memoryEmpty'),
-  modelSelect: document.getElementById('modelSelect'),
-  modelSheet: document.getElementById('modelSheet'),
-  modelSheetBackdrop: document.getElementById('modelSheetBackdrop'),
-  modelSheetList: document.getElementById('modelSheetList'),
-  closeModelSheet: document.getElementById('closeModelSheet'),
-  messageInput: document.getElementById('messageInput'),
-  promptAssistToggle: document.getElementById('promptAssistToggle'),
-  webSearchToggle: document.getElementById('webSearchToggle'),
-  promptQuickbar: document.getElementById('promptQuickbar'),
-  sendBtn: document.getElementById('sendBtn'),
-  stopBtn: document.getElementById('stopBtn'),
-  scrollToBottomBtn: document.getElementById('scrollToBottomBtn'),
-  settingsBtn: document.getElementById('settingsBtn'),
-  settingsBackdrop: document.getElementById('settingsBackdrop'),
-  settingsModal: document.getElementById('settingsModal'),
-  closeSettingsBtn: document.getElementById('closeSettingsBtn'),
-  settingsForm: document.getElementById('settingsForm'),
-  settingsUsername: document.getElementById('settingsUsername'),
-  settingsNewPassword: document.getElementById('settingsNewPassword'),
-  settingsConfirmPassword: document.getElementById('settingsConfirmPassword'),
-  settingsCurrentPassword: document.getElementById('settingsCurrentPassword'),
-  settingsMessage: document.getElementById('settingsMessage'),
-  settingsSaveBtn: document.getElementById('settingsSaveBtn'),
-  settingsLogoutBtn: document.getElementById('settingsLogoutBtn'),
-};
-
-function syncClientModeAttributes() {
-  document.body?.classList.toggle('client-macos', state.isMacOSClient);
-  document.body?.classList.toggle('server-chat-only', IS_SERVER_CHAT_ONLY);
-  if (state.isMacOSClient) {
-    document.documentElement.dataset.client = 'macos';
-    dom.chatView?.setAttribute('data-client', 'macos');
-  } else {
-    if (document.documentElement.dataset.client === 'macos') {
-      delete document.documentElement.dataset.client;
-    }
-    dom.chatView?.removeAttribute('data-client');
-  }
-}
-
-syncClientModeAttributes();
+const dom = Object.fromEntries([
+  'authView', 'chatView', 'loginForm', 'registerForm', 'loginError', 'regError',
+  'loginUser', 'loginPass', 'regUser', 'regEmail', 'regPass', 'logoutBtn',
+  'newChatBtn', 'mobileMoreBtn', 'mobileMoreMenu', 'mobileMoreBackdrop',
+  'closeMobileMoreBtn', 'mobileNewChatBtn', 'mobileSidebarBtn', 'sidebarBackdrop',
+  'chatList', 'chatSearchInput', 'chatSearchEmpty', 'batchSelectBtn',
+  'batchActionBar', 'batchCount', 'batchDeleteBtn', 'batchCancelBtn',
+  'chatTitleInput', 'userAvatar', 'userName', 'emptyState',
+  'messagesContainer', 'inputArea', 'modelSelect', 'messageInput',
+  'webSearchToggle', 'sendBtn', 'stopBtn', 'scrollToBottomBtn', 'settingsBtn',
+  'settingsBackdrop', 'settingsModal', 'closeSettingsBtn', 'settingsForm',
+  'settingsUsername', 'settingsNewPassword', 'settingsConfirmPassword',
+  'settingsCurrentPassword', 'settingsMessage', 'settingsSaveBtn',
+  'settingsLogoutBtn'
+].map(id => [id, document.getElementById(id)]));
+dom.tabs = document.querySelectorAll('.auth-tab');
 
 function createRequestSignal(parentSignal, timeoutMs) {
   if (!parentSignal && !timeoutMs) {
@@ -251,31 +150,6 @@ const API = {
   patch(path, body, options = {}) { return this.request('PATCH', path, body, options); },
   del(path, options = {}) { return this.request('DELETE', path, null, options); },
 };
-
-const memoryState = {
-  memories: [],
-  health: null,
-  loaded: false,
-};
-
-const PROMPT_SHORTCUTS = {
-  summarize: '请总结上面的内容，提炼重点、结论和下一步建议。',
-  expand: '请继续展开上面的回答，补充关键细节和容易忽略的注意点。',
-  rewrite: '请把上面的内容改写得更清楚、更自然，并保留原意。',
-  steps: '请把上面的内容整理成可执行步骤，按优先级排列。',
-};
-
-function applyAppModeCopy() {
-  if (!state.isAppMode) return;
-  const heroCopy = document.querySelector('.auth-hero p');
-  const headerCopy = document.querySelector('.auth-header p');
-  const noteChips = document.querySelectorAll('.auth-hero-notes .note-chip');
-  if (heroCopy) heroCopy.textContent = '轻巧、连续、适合手机使用的私人 AI 对话。';
-  if (headerCopy) headerCopy.textContent = '登录后继续你的对话、模型和记忆。';
-  if (noteChips[2]) noteChips[2].textContent = '个人记忆';
-}
-
-applyAppModeCopy();
 
 if (window.marked) {
   marked.setOptions({
@@ -458,15 +332,8 @@ function isMobileLayout() {
   return window.matchMedia('(max-width: 720px)').matches;
 }
 
-function isServerChatDockedSidebar() {
-  return IS_SERVER_CHAT_ONLY
-    && !document.body.classList.contains('selected-ui')
-    && !state.isMacOSClient
-    && !window.matchMedia('(max-width: 1080px)').matches;
-}
-
 function isMobileWebLayout() {
-  return isMobileLayout() && !state.isAppMode && !state.isMacOSClient;
+  return isMobileLayout();
 }
 
 function syncMobileWebMode() {
@@ -474,13 +341,12 @@ function syncMobileWebMode() {
   document.body?.classList.toggle('mobile-web-mode', active);
   dom.chatView?.toggleAttribute('data-mobile-web', active);
   if (!active) {
-    closePromptAssistant({ returnFocus: false });
     document.body?.classList.remove('mobile-composer-focus', 'message-action-sheet-open');
   }
 }
 
 function syncMobileComposerFocus(focused) {
-  document.body?.classList.toggle('mobile-composer-focus', Boolean(focused && isMobileWebLayout() && state.activeTab === 'chat'));
+  document.body?.classList.toggle('mobile-composer-focus', Boolean(focused && isMobileWebLayout()));
 }
 
 function setElementSuppressed(el, suppressed) {
@@ -548,7 +414,6 @@ function openMobileMessageActionSheet(messageEl, triggerBtn) {
         ['copy', '复制', ''],
         ['continue', '继续', ''],
         ['regenerate', '重答', ' message-action-danger'],
-        ['save-memory', '保存记忆', ''],
       ]
     : [
         ['copy', '复制', ''],
@@ -588,31 +453,6 @@ function openMobileMessageActionSheet(messageEl, triggerBtn) {
   return true;
 }
 
-function openPromptAssistant() {
-  if (!dom.promptQuickbar || !dom.promptAssistToggle || !isMobileWebLayout()) return;
-  dom.promptQuickbar.classList.add('open');
-  dom.promptQuickbar.removeAttribute('inert');
-  dom.promptQuickbar.setAttribute('aria-hidden', 'false');
-  dom.promptAssistToggle.classList.add('is-open');
-  dom.promptAssistToggle.setAttribute('aria-expanded', 'true');
-}
-
-function closePromptAssistant({ returnFocus = true } = {}) {
-  if (!dom.promptQuickbar || !dom.promptAssistToggle) return;
-  const wasOpen = dom.promptQuickbar.classList.contains('open');
-  dom.promptQuickbar.classList.remove('open');
-  dom.promptQuickbar.setAttribute('aria-hidden', 'true');
-  dom.promptQuickbar.setAttribute('inert', '');
-  dom.promptAssistToggle.classList.remove('is-open');
-  dom.promptAssistToggle.setAttribute('aria-expanded', 'false');
-  if (returnFocus && wasOpen) dom.promptAssistToggle.focus?.({ preventScroll: true });
-}
-
-function togglePromptAssistant() {
-  if (dom.promptQuickbar?.classList.contains('open')) closePromptAssistant();
-  else openPromptAssistant();
-}
-
 function showView(viewId) {
   document.querySelectorAll('.view').forEach(v => {
     v.classList.remove('active');
@@ -624,44 +464,14 @@ function showView(viewId) {
   target.classList.add('active');
 }
 
-function isAdminUser() {
-  return state.user?.role === 'admin';
-}
-
-function canAccessTab(tab) {
-  if (IS_SERVER_CHAT_ONLY) {
-    return tab === 'chat';
-  }
-  if (tab === 'control' || tab === 'finder' || tab === 'terminal') {
-    return isAdminUser() && !state.isAppMode;
-  }
-  return tab === 'chat' || tab === 'memory' || tab === 'stilltype';
-}
-
 function resetViewVisibility() {
   dom.authView.classList.add('hidden');
   dom.chatView.classList.add('hidden');
 }
 
-function syncResponsiveSidebarState({ refresh = false } = {}) {
-  if (!IS_SERVER_CHAT_ONLY) return;
+function syncResponsiveSidebarState() {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
-  const docked = Boolean(state.token) && isServerChatDockedSidebar();
-  document.body?.classList.toggle('sidebar-docked', docked);
-
-  if (docked) {
-    sidebar.classList.remove('hidden', 'mobile-open', 'is-dragging-close');
-    sidebar.style.removeProperty('--sidebar-drag-offset');
-    setElementSuppressed(sidebar, false);
-    dom.sidebarBackdrop?.classList.add('hidden');
-    dom.sidebarBackdrop?.classList.remove('open');
-    setElementSuppressed(dom.sidebarBackdrop, true);
-    document.body.classList.remove('sidebar-open');
-    if (refresh && state.token) loadChats({ showLoading: state.chats.length === 0, notifyError: true });
-    return;
-  }
-
   if (!sidebar.classList.contains('mobile-open')) {
     sidebar.classList.add('hidden');
     sidebar.classList.remove('is-dragging-close');
@@ -680,20 +490,6 @@ function openSidebarOnMobile({ refresh = true, resetSearch = false } = {}) {
     state.chatSearchQuery = '';
     if (dom.chatSearchInput) dom.chatSearchInput.value = '';
   }
-  if (isServerChatDockedSidebar()) {
-    syncResponsiveSidebarState({ refresh });
-    dom.chatSearchInput?.focus?.({ preventScroll: true });
-    dom.chatSearchInput?.select?.();
-    return;
-  }
-  if (state.isMacOSClient && !isMobileLayout() && !IS_SERVER_CHAT_ONLY) {
-    sidebar?.classList.remove('hidden');
-    setElementSuppressed(sidebar, false);
-    if (refresh && state.token) loadChats({ showLoading: state.chats.length === 0, notifyError: true });
-    dom.chatSearchInput?.focus?.({ preventScroll: true });
-    dom.chatSearchInput?.select?.();
-    return;
-  }
   state.sidebarReturnFocus = document.activeElement;
   sidebar?.classList.remove('hidden');
   sidebar?.classList.add('mobile-open');
@@ -711,19 +507,6 @@ function openSidebarOnMobile({ refresh = true, resetSearch = false } = {}) {
 
 function closeSidebarOnMobile({ returnFocus = true } = {}) {
   const sidebar = document.getElementById('sidebar');
-  if (isServerChatDockedSidebar()) {
-    syncResponsiveSidebarState();
-    return;
-  }
-  if (state.isMacOSClient && !isMobileLayout() && !IS_SERVER_CHAT_ONLY) {
-    sidebar?.classList.remove('hidden', 'mobile-open', 'is-dragging-close');
-    sidebar?.style.removeProperty('--sidebar-drag-offset');
-    setElementSuppressed(sidebar, false);
-    dom.sidebarBackdrop?.classList.add('hidden');
-    dom.sidebarBackdrop?.classList.remove('open');
-    document.body.classList.remove('sidebar-open');
-    return;
-  }
   sidebar?.classList.remove('mobile-open', 'is-dragging-close');
   sidebar?.style.removeProperty('--sidebar-drag-offset');
   dom.sidebarBackdrop?.classList.remove('open');
@@ -801,13 +584,6 @@ function bindSidebarSwipeToClose() {
 }
 
 function syncMobileMoreMenu() {
-  if (!dom.mobileMoreMenu) return;
-  dom.mobileMoreMenu.querySelectorAll('[data-mobile-tab]').forEach(btn => {
-    const tab = btn.dataset.mobileTab;
-    const allowed = canAccessTab(tab);
-    btn.hidden = !allowed;
-    btn.classList.toggle('active', state.activeTab === tab);
-  });
   syncThemeControls();
 }
 
@@ -816,7 +592,6 @@ function openMobileMoreMenu() {
   syncMobileMoreMenu();
   state.moreReturnFocus = document.activeElement;
   closeSidebarOnMobile({ returnFocus: false });
-  closeModelSheet();
   setElementSuppressed(dom.mobileMoreMenu, false);
   setElementSuppressed(dom.mobileMoreBackdrop, false);
   dom.mobileMoreMenu.classList.remove('hidden');
@@ -852,73 +627,6 @@ function closeMobileMoreMenu() {
   }, 180);
 }
 
-function openModelSheet() {
-  if (!dom.modelSheet || !dom.modelSheetBackdrop) return;
-  setElementSuppressed(dom.modelSheet, false);
-  setElementSuppressed(dom.modelSheetBackdrop, false);
-  dom.modelSheet.classList.remove('hidden');
-  dom.modelSheetBackdrop.classList.remove('hidden');
-  requestAnimationFrame(() => {
-    dom.modelSheet.classList.add('open');
-    dom.modelSheetBackdrop.classList.add('open');
-  });
-}
-
-function closeModelSheet() {
-  if (!dom.modelSheet || !dom.modelSheetBackdrop) return;
-  dom.modelSheet.classList.remove('open');
-  dom.modelSheetBackdrop.classList.remove('open');
-  window.setTimeout(() => {
-    if (!dom.modelSheet.classList.contains('open')) {
-      dom.modelSheet.classList.add('hidden');
-      setElementSuppressed(dom.modelSheet, true);
-    }
-    if (!dom.modelSheetBackdrop.classList.contains('open')) {
-      dom.modelSheetBackdrop.classList.add('hidden');
-      setElementSuppressed(dom.modelSheetBackdrop, true);
-    }
-  }, 220);
-}
-
-function currentModelText(modelId = dom.modelSelect.value) {
-  const normalized = normalizeChatModel(modelId);
-  const option = Array.from(dom.modelSelect.options).find(opt => opt.value === normalized);
-  if (option) return option.textContent || normalized;
-  return normalized;
-}
-
-function firstAvailableModelId() {
-  if (!ALLOWED_CHAT_MODELS.length) {
-    return dom.modelSelect.options[0]?.value || DEFAULT_CHAT_MODEL || '';
-  }
-  return Array.from(dom.modelSelect.options).find(opt => ALLOWED_CHAT_MODELS.includes(opt.value))?.value || DEFAULT_CHAT_MODEL;
-}
-
-function modelOptionExists(modelId) {
-  if (!modelId) return false;
-  if (!ALLOWED_CHAT_MODELS.length) return Array.from(dom.modelSelect.options).some(opt => opt.value === modelId);
-  return ALLOWED_CHAT_MODELS.includes(modelId) && Array.from(dom.modelSelect.options).some(opt => opt.value === modelId);
-}
-
-function updateModelBadges() {
-  const text = currentModelText();
-  const selectedModel = normalizeChatModel(dom.modelSelect.value);
-  if (dom.mobileCurrentModelLabel) dom.mobileCurrentModelLabel.textContent = text;
-  if (dom.mobileModelBtn) dom.mobileModelBtn.setAttribute('aria-label', `当前模型：${text}`);
-  if (dom.modelSheetList) {
-    dom.modelSheetList.querySelectorAll('.model-choice').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.modelId === selectedModel);
-    });
-  }
-  if (dom.emptyModels) {
-    dom.emptyModels.querySelectorAll('.empty-model-chip').forEach(btn => {
-      const active = btn.dataset.modelId === dom.modelSelect.value;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-  }
-}
-
 function syncWebSearchToggle() {
   const btn = dom.webSearchToggle;
   if (!btn) return;
@@ -946,83 +654,19 @@ function setWebSearchEnabled(enabled) {
 
 function setSelectedModel(modelId) {
   const normalized = normalizeChatModel(modelId);
-  dom.modelSelect.value = modelOptionExists(normalized) ? normalized : firstAvailableModelId();
-  updateModelBadges();
-}
-
-function renderModelPickers(models) {
-  const previousModel = normalizeChatModel(dom.modelSelect.value);
-  const allowedModels = ALLOWED_CHAT_MODELS.length
-    ? (models || []).filter(model => ALLOWED_CHAT_MODELS.includes(model.id))
-    : (models || []);
-  dom.modelSelect.innerHTML = '';
-  dom.emptyModels.innerHTML = '';
-  dom.emptyModels.hidden = true;
-  dom.emptyModels.classList.add('hidden');
-  dom.modelSheetList.innerHTML = '';
-
-  if (!allowedModels.length) {
-    dom.modelSelect.innerHTML = '<option value="">未配置模型</option>';
-    dom.modelSelect.disabled = true;
-    dom.mobileCurrentModelLabel.textContent = '未配置';
-    dom.modelSheetList.innerHTML = '<div class="model-group"><div class="model-group-title">无可用模型</div><div class="model-choice" style="cursor:default;opacity:.72"><span class="model-choice-id">未配置模型</span><span class="model-choice-provider">检查服务配置</span></div></div>';
-    return;
-  }
-
-  const grouped = new Map();
-  for (const model of allowedModels) {
-    const key = model.providerName || 'Unknown';
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(model);
-  }
-
-  for (const [provider, providerModels] of grouped.entries()) {
-    const optgroup = document.createElement('optgroup');
-    optgroup.label = provider;
-    for (const m of providerModels) {
-      const opt = document.createElement('option');
-      opt.value = m.id;
-      opt.textContent = m.id;
-      optgroup.appendChild(opt);
-    }
-    dom.modelSelect.appendChild(optgroup);
-
-    const groupWrap = document.createElement('div');
-    groupWrap.className = 'model-group';
-    groupWrap.innerHTML = `<div class="model-group-title">${escapeHtml(provider)}</div>`;
-    for (const m of providerModels) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'model-choice';
-      btn.dataset.modelId = m.id;
-      btn.innerHTML = `<span class="model-choice-id">${escapeHtml(m.id)}</span><span class="model-choice-provider">${escapeHtml(provider)}</span>`;
-      groupWrap.appendChild(btn);
-    }
-    dom.modelSheetList.appendChild(groupWrap);
-  }
-
-  dom.modelSelect.disabled = true;
-  setSelectedModel(previousModel || state.currentChat?.model || DEFAULT_CHAT_MODEL || state._defaultModel || '');
+  if (normalized) dom.modelSelect.value = normalized;
 }
 
 async function loadModels() {
   try {
     const data = await API.get('/models');
-    const serverModels = data.models || [];
-    // Update allowed models from server (remove client-side hardcoded filter)
-    if (!ALLOWED_CHAT_MODELS.length) {
-      for (const m of serverModels) {
-        if (!ALLOWED_CHAT_MODELS.includes(m.id)) ALLOWED_CHAT_MODELS.push(m.id);
-      }
-    }
-    state.models = serverModels.filter(model =>
-      !ALLOWED_CHAT_MODELS.length || ALLOWED_CHAT_MODELS.includes(model.id)
-    );
-    if (!DEFAULT_CHAT_MODEL && state.models.length) {
-      // DEFAULT_CHAT_MODEL is const — update via state fallback
-      state._defaultModel = state.models[0].id;
-    }
-    renderModelPickers(state.models);
+    state.models = data.models || [];
+    state.defaultModel = state.models[0]?.id || '';
+    ALLOWED_CHAT_MODELS.splice(0, ALLOWED_CHAT_MODELS.length, ...state.models.map(model => model.id));
+    dom.modelSelect.innerHTML = state.models.length
+      ? state.models.map(model => `<option value="${escapeAttr(model.id)}">${escapeHtml(model.id)}</option>`).join('')
+      : '<option value="">未配置模型</option>';
+    dom.modelSelect.value = normalizeChatModel(state.currentChat?.model || state.defaultModel);
     setWebSearchAvailability(Boolean(data.webSearch?.enabled));
   } catch (err) {
     console.error('Failed to load models:', err);
@@ -1278,25 +922,9 @@ async function renameChat(chat, title) {
 
 function updateChatHeaderTitle() {
   const h1 = document.querySelector('.main-title-copy h1');
-  const input = dom.chatTitleInput;
-  const pageTitles = {
-    memory: '记忆库',
-    stilltype: '打字练习',
-    control: '控制台',
-    terminal: '终端',
-    finder: '文件',
-  };
-  const title = state.activeTab === 'chat'
-    ? (state.currentChat?.title || '新对话')
-    : (pageTitles[state.activeTab] || 'AI Dialogue');
+  const title = state.currentChat?.title || '新对话';
   if (h1) h1.textContent = title;
-  if (input) {
-    input.value = state.activeTab === 'chat' ? (state.currentChat?.title || '') : '';
-    if (state.activeTab !== 'chat') {
-      input.style.display = 'none';
-      if (h1) h1.style.display = '';
-    }
-  }
+  if (dom.chatTitleInput) dom.chatTitleInput.value = state.currentChat?.title || '';
 }
 
 function showEmptyState() {
@@ -1558,7 +1186,6 @@ function createMessageElement(msg) {
   if (msg.role === 'assistant') {
     secondaryActions.push(`<button class="message-action" type="button" data-action="continue">继续</button>`);
     secondaryActions.push(`<button class="message-action message-action-danger" type="button" data-action="regenerate">重答</button>`);
-    secondaryActions.push(`<button class="message-action" type="button" data-action="save-memory">保存记忆</button>`);
   }
   const actionMenuTitle = msg.role === 'assistant' ? 'AI 回答操作' : '我的消息操作';
 
@@ -1700,48 +1327,6 @@ function restoreInputDraft(chatId = state.currentChat?.id || 'new') {
   updateSendButton();
 }
 
-function applyPromptShortcut(action) {
-  const prompt = PROMPT_SHORTCUTS[action];
-  if (!prompt) return;
-  applyPromptToInput(prompt, { append: Boolean(dom.messageInput?.value.trim()) });
-}
-
-function focusMacOSPrimaryField() {
-  if (!state.isMacOSClient) return;
-  const target = (() => {
-    if (state.activeTab === 'memory') return dom.memorySearchInput || dom.messageInput;
-    return dom.messageInput;
-  })();
-  target?.focus?.({ preventScroll: true });
-  if (target && target !== dom.messageInput && typeof target.select === 'function') target.select();
-}
-
-function handleMacOSClientShortcut(e) {
-  if (!state.isMacOSClient || e.altKey || e.ctrlKey || !e.metaKey) return false;
-  if (state.activeDialog) return false;
-  const key = e.key.toLowerCase();
-
-  if (key === 'n') {
-    e.preventDefault();
-    if (state.token && !state.streaming) newChat();
-    return true;
-  }
-
-  if (key === 'l') {
-    e.preventDefault();
-    focusMacOSPrimaryField();
-    return true;
-  }
-
-  if (e.key === 'Enter' && document.activeElement !== dom.messageInput) {
-    e.preventDefault();
-    if (!state.streaming) sendMessage();
-    return true;
-  }
-
-  return false;
-}
-
 function getMessageElementById(messageId) {
   if (!messageId) return null;
   const escaped = window.CSS && CSS.escape ? CSS.escape(String(messageId)) : escapeAttr(messageId);
@@ -1866,33 +1451,6 @@ function continueStoppedDraft() {
   }
   const partial = compactPlainText(draft.content, 1400);
   applyPromptToInput(`上一次回答被中断，已生成的内容如下：\n\n${partial}\n\n请从中断处继续，不要重复已生成内容。`);
-}
-
-async function saveMessageAsMemory(messageId, btn) {
-  const msg = state.messages.find(m => String(m.id) === String(messageId));
-  if (!msg?.content?.trim()) return toast('没有可保存的内容');
-  const original = btn?.textContent;
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '保存中';
-  }
-  try {
-    const titlePrefix = msg.role === 'assistant' ? 'AI 回答' : '我的消息';
-    const title = `${titlePrefix}: ${compactPlainText(msg.content, 34)}`;
-    await API.post('/memories', { title, content: msg.content, enabled: true });
-    toast('已保存到记忆');
-    if (memoryState.loaded) await loadMemories();
-    refreshMemoryHealth();
-    btn?.classList.add('is-success');
-  } catch (err) {
-    toast(err.message || '保存记忆失败');
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = original || '保存记忆';
-      window.setTimeout(() => btn.classList.remove('is-success'), 900);
-    }
-  }
 }
 
 async function regenerateFromAssistant(messageId) {
@@ -2284,20 +1842,15 @@ async function sendMessage() {
 }
 
 async function runMessageAction(action, messageId, btn) {
-  if (action === 'continue-stopped') {
-    continueStoppedDraft();
-    return;
-  }
+  if (action === 'continue-stopped') return continueStoppedDraft();
   if (action === 'copy-stopped') {
     if (!state.stoppedDraft?.content?.trim()) return toast('没有可复制的内容');
-    await copyMessageContent(state.stoppedDraft.content);
-    return;
+    return copyMessageContent(state.stoppedDraft.content);
   }
   if (action === 'retry-last') {
     const prompt = state.stoppedDraft?.prompt || dom.messageInput?.value?.trim?.() || '';
     if (!prompt) return toast('没有可重试的内容');
-    await sendPrompt(prompt, { clearInput: true });
-    return;
+    return sendPrompt(prompt, { clearInput: true });
   }
   if (!messageId) return;
   if (action === 'copy') {
@@ -2315,8 +1868,6 @@ async function runMessageAction(action, messageId, btn) {
     await retryUserMessage(messageId);
   } else if (action === 'continue') {
     continueFromMessage(messageId);
-  } else if (action === 'save-memory') {
-    await saveMessageAsMemory(messageId, btn);
   } else if (action === 'regenerate') {
     await regenerateFromAssistant(messageId);
   }
@@ -2342,11 +1893,6 @@ async function newChat() {
   } catch (err) {
     toast('创建会话失败');
   }
-}
-
-async function quickStart(modelId) {
-  setSelectedModel(normalizeChatModel(modelId));
-  await newChat();
 }
 
 async function openChat(chat) {
@@ -2376,226 +1922,10 @@ async function loadMessages() {
   }
 }
 
-function setMemoryHealth(status) {
-  memoryState.health = status;
-  if (!dom.memoryHealth) return;
-  const ok = Boolean(status?.ok);
-  const loading = !status;
-  dom.memoryHealth.classList.toggle('ok', ok);
-  dom.memoryHealth.classList.toggle('bad', Boolean(status && !ok));
-  dom.memoryHealth.classList.toggle('loading', loading);
-
-  if (dom.memorySaveBtn) {
-    dom.memorySaveBtn.classList.toggle('memory-save-risk', Boolean(status && !ok));
-    dom.memorySaveBtn.title = status && !ok ? '本地 embedding 不可用，保存可能失败' : '保存记忆';
-  }
-
-  if (loading) {
-    dom.memoryHealth.innerHTML = `
-      <div class="memory-health-main">
-        <span class="memory-health-dot"></span>
-        <div class="memory-health-copy">
-          <strong>正在检测本地记忆服务</strong>
-          <span>检查 embedding 服务与模型状态…</span>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  const model = status.model || '未配置';
-  const baseUrl = status.baseUrl || '未知地址';
-  const dim = status.dim ? `${status.dim}d` : '自动';
-  const installed = status.installed ? '目标模型已确认' : (ok ? '服务可用，未确认目标模型' : '模型不可用');
-  const title = ok ? '本地 embedding 可用' : '本地 embedding 不可用';
-  const detail = ok
-    ? `${installed} · ${status.availableModels || 0} 个本地模型`
-    : (status.error || '请检查 Ollama / embedding 服务是否启动');
-
-  dom.memoryHealth.innerHTML = `
-    <div class="memory-health-main">
-      <span class="memory-health-dot"></span>
-      <div class="memory-health-copy">
-        <strong>${escapeHtml(title)}</strong>
-        <span>${escapeHtml(detail)}</span>
-      </div>
-      <button class="memory-health-refresh" type="button" data-memory-health-refresh>重试</button>
-    </div>
-    <details class="memory-health-details">
-      <summary>服务详情</summary>
-      <div class="memory-health-meta">
-        <span>地址：${escapeHtml(baseUrl)}</span>
-        <span>模型：${escapeHtml(model)}</span>
-        <span>维度：${escapeHtml(dim)}</span>
-        <span>超时：${escapeHtml(String(status.timeoutMs || ''))}ms</span>
-      </div>
-    </details>
-  `;
-}
-
-async function refreshMemoryHealth() {
-  if (!dom.memoryHealth) return;
-  setMemoryHealth(null);
-  try {
-    setMemoryHealth(await API.get('/memories/health'));
-  } catch {
-    setMemoryHealth({ ok: false });
-  }
-}
-
-function setMemoryComposerOpen(open, { focus = false } = {}) {
-  if (!dom.memoryComposeBody || !dom.memoryComposeToggle) return;
-  dom.memoryComposeBody.classList.toggle('hidden', !open);
-  dom.memoryComposeToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  dom.memoryComposeToggle.textContent = open ? '收起' : '展开';
-  dom.memoryComposeBody.closest('.memory-compose')?.classList.toggle('is-open', open);
-  if (open && focus) {
-    window.setTimeout(() => (dom.memoryContentInput || dom.memoryTitleInput)?.focus?.({ preventScroll: false }), 30);
-  }
-}
-
-function memoryFilterQuery() {
-  const params = new URLSearchParams();
-  const q = dom.memorySearchInput?.value.trim();
-  const filter = dom.memoryFilterSelect?.value || 'all';
-  if (q) params.set('q', q);
-  if (filter === 'enabled') params.set('enabled', '1');
-  if (filter === 'disabled') params.set('enabled', '0');
-  params.set('limit', '120');
-  return params.toString();
-}
-
-async function loadMemories() {
-  if (!dom.memoryList) return;
-  try {
-    const query = memoryFilterQuery();
-    const data = await API.get(`/memories${query ? `?${query}` : ''}`);
-    memoryState.memories = data.memories || [];
-    memoryState.loaded = true;
-    renderMemories();
-  } catch (err) {
-    toast(err.message || '记忆加载失败');
-  }
-}
-
-function renderMemories() {
-  if (!dom.memoryList) return;
-  dom.memoryList.innerHTML = '';
-  const memories = memoryState.memories || [];
-  if (dom.memoryEmpty) {
-    dom.memoryEmpty.classList.toggle('hidden', memories.length > 0);
-    if (!memories.length) {
-      dom.memoryEmpty.innerHTML = `
-        <strong>暂无记忆。</strong>
-        <span>把常用偏好、项目背景或固定要求保存下来，之后对话会更省心。</span>
-        <button class="memory-empty-cta" type="button" data-memory-empty-compose>添加第一条记忆</button>
-      `;
-    }
-  }
-  for (const memory of memories) {
-    const card = document.createElement('article');
-    card.className = `memory-card${memory.enabled ? '' : ' is-disabled'}`;
-    card.dataset.memoryId = memory.id;
-    const title = memory.title || '未命名记忆';
-    const dim = memory.embedding_dim ? `${memory.embedding_dim}d` : '';
-    card.innerHTML = `
-      <div class="memory-card-head">
-        <div class="memory-card-title">${escapeHtml(title)}</div>
-        <span class="memory-state">${memory.enabled ? '启用' : '停用'}</span>
-      </div>
-      <div class="memory-card-content">${escapeHtml(memory.content || '')}</div>
-      <div class="memory-card-meta">
-        <span>${escapeHtml(memory.embedding_model || 'local')}</span>
-        <span>${escapeHtml(dim)}</span>
-      </div>
-      <div class="memory-card-actions">
-        <button class="message-action" type="button" data-memory-action="toggle">${memory.enabled ? '停用' : '启用'}</button>
-        <button class="message-action" type="button" data-memory-action="edit">编辑</button>
-        <button class="message-action message-action-danger" type="button" data-memory-action="delete">删除</button>
-      </div>
-    `;
-    dom.memoryList.appendChild(card);
-  }
-}
-
-async function saveMemory() {
-  const title = dom.memoryTitleInput?.value.trim() || '';
-  const content = dom.memoryContentInput?.value.trim() || '';
-  const enabled = Boolean(dom.memoryEnabledInput?.checked);
-  if (!content) return toast('先写入记忆内容');
-  if (dom.memorySaveBtn) dom.memorySaveBtn.disabled = true;
-  try {
-    await API.post('/memories', { title, content, enabled });
-    if (dom.memoryTitleInput) dom.memoryTitleInput.value = '';
-    if (dom.memoryContentInput) dom.memoryContentInput.value = '';
-    if (dom.memoryEnabledInput) dom.memoryEnabledInput.checked = true;
-    toast('记忆已保存');
-    setMemoryComposerOpen(false);
-    await loadMemories();
-    refreshMemoryHealth();
-  } catch (err) {
-    toast(err.message || '保存失败，请检查本地 embedding 服务');
-  } finally {
-    if (dom.memorySaveBtn) dom.memorySaveBtn.disabled = false;
-  }
-}
-
-async function updateMemory(memory, patch) {
-  const data = await API.patch(`/memories/${memory.id}`, patch);
-  const idx = memoryState.memories.findIndex(item => item.id === memory.id);
-  if (idx >= 0 && data.memory) memoryState.memories[idx] = data.memory;
-  renderMemories();
-}
-
-async function handleMemoryAction(btn) {
-  const card = btn.closest('.memory-card');
-  const memory = memoryState.memories.find(item => item.id === card?.dataset.memoryId);
-  if (!memory) return;
-  const action = btn.dataset.memoryAction;
-  try {
-    if (action === 'toggle') {
-      await updateMemory(memory, { enabled: !memory.enabled });
-      toast(memory.enabled ? '记忆已停用' : '记忆已启用');
-    } else if (action === 'edit') {
-      const result = await appPrompt({
-        title: '编辑记忆',
-        fields: [
-          { name: 'title', label: '标题', value: memory.title || '', placeholder: '可选' },
-          { name: 'content', label: '内容', value: memory.content || '', multiline: true, required: true },
-        ],
-        confirmText: '更新',
-      });
-      if (!result) return;
-      const { title, content } = result;
-      await updateMemory(memory, { title, content, enabled: memory.enabled });
-      toast('记忆已更新');
-    } else if (action === 'delete') {
-      const ok = await appConfirm({
-        title: '删除记忆',
-        message: `确定删除“${memory.title || '未命名记忆'}”？`,
-        confirmText: '删除',
-        danger: true,
-      });
-      if (!ok) return;
-      await API.del(`/memories/${memory.id}`);
-      memoryState.memories = memoryState.memories.filter(item => item.id !== memory.id);
-      renderMemories();
-      toast('记忆已删除');
-    }
-  } catch (err) {
-    toast(err.message || '操作失败');
-  }
-}
-
 function afterLogin() {
-  document.body?.classList.toggle('app-mode', state.isAppMode);
-  syncClientModeAttributes();
-  document.body?.classList.toggle('is-admin', isAdminUser());
   showView('chatView');
   dom.userName.textContent = state.user.username;
   dom.userAvatar.textContent = state.user.username[0].toUpperCase();
-  initControlPanel();
-  setActiveTab('chat');
   syncResponsiveSidebarState();
   loadChats();
   loadModels();
@@ -2771,32 +2101,17 @@ async function submitSettings(e) {
 function initEvents() {
   const sidebar = document.getElementById('sidebar');
   sidebar?.classList.add('hidden');
-  setElementSuppressed(sidebar, true);
-  setElementSuppressed(dom.sidebarBackdrop, true);
-  setElementSuppressed(dom.mobileMoreMenu, true);
-  setElementSuppressed(dom.mobileMoreBackdrop, true);
-  setElementSuppressed(dom.modelSheet, true);
-  setElementSuppressed(dom.modelSheetBackdrop, true);
-  setElementSuppressed(dom.settingsModal, true);
-  setElementSuppressed(dom.settingsBackdrop, true);
+  for (const element of [sidebar, dom.sidebarBackdrop, dom.mobileMoreMenu, dom.mobileMoreBackdrop, dom.settingsModal, dom.settingsBackdrop]) {
+    setElementSuppressed(element, true);
+  }
 
   dom.logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('ai_chat_token');
-    state.token = null;
-    state.user = null;
-    state.chats = [];
-    state.currentChat = null;
-    state.messages = [];
-    state.activeTab = 'chat';
-    memoryState.memories = [];
-    memoryState.health = null;
-    memoryState.loaded = false;
-    initControlPanel.initialized = false;
-    document.body?.classList.remove('is-admin');
-    document.querySelectorAll('.tab-btn').forEach(btn => { btn.style.display = ''; btn.hidden = false; });
+    abortActiveRequest();
+    Object.assign(state, { token: null, user: null, chats: [], currentChat: null, messages: [], batchMode: false });
+    state.batchSelected.clear();
     closeSidebarOnMobile();
     closeMobileMoreMenu();
-    closeModelSheet();
     showView('authView');
   });
 
@@ -2805,7 +2120,6 @@ function initEvents() {
   document.getElementById('railNewChatBtn')?.addEventListener('click', newChat);
   document.getElementById('railChatBtn')?.addEventListener('click', () => {
     closeSidebarOnMobile({ returnFocus: false });
-    setActiveTab('chat');
     dom.messageInput.focus();
   });
   for (const id of ['railHistoryBtn', 'titleHistoryBtn']) {
@@ -2817,93 +2131,54 @@ function initEvents() {
   });
   document.getElementById('closeHistoryBtn')?.addEventListener('click', () => closeSidebarOnMobile());
 
-  // Settings modal
   dom.settingsBtn?.addEventListener('click', openSettings);
   dom.closeSettingsBtn?.addEventListener('click', closeSettings);
   dom.settingsBackdrop?.addEventListener('click', closeSettings);
   dom.settingsForm?.addEventListener('submit', submitSettings);
   dom.settingsLogoutBtn?.addEventListener('click', () => { closeSettings(); dom.logoutBtn.click(); });
-  dom.settingsModal?.addEventListener('click', (e) => {
-    const themeBtn = e.target.closest('button[data-theme-choice]');
-    if (themeBtn?.dataset.themeChoice) setThemePreference(themeBtn.dataset.themeChoice);
-  });
-  dom.memoryComposeToggle?.addEventListener('click', () => {
-    const next = dom.memoryComposeToggle.getAttribute('aria-expanded') !== 'true';
-    setMemoryComposerOpen(next, { focus: next });
-  });
-  dom.memorySaveBtn?.addEventListener('click', saveMemory);
-  dom.memoryRefreshBtn?.addEventListener('click', () => {
-    loadMemories();
-    refreshMemoryHealth();
-  });
-  dom.memoryHealth?.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-memory-health-refresh]');
-    if (!btn) return;
-    refreshMemoryHealth();
-  });
-  dom.memorySearchInput?.addEventListener('input', () => {
-    clearTimeout(dom.memorySearchInput._memoryTimer);
-    dom.memorySearchInput._memoryTimer = setTimeout(loadMemories, 220);
-  });
-  dom.memoryFilterSelect?.addEventListener('change', loadMemories);
-  dom.memoryList?.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-memory-action]');
-    if (btn) handleMemoryAction(btn);
-  });
-  dom.tabMemory?.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-memory-empty-compose]');
-    if (!btn) return;
-    setMemoryComposerOpen(true, { focus: true });
+  dom.settingsModal?.addEventListener('click', event => {
+    const choice = event.target.closest('button[data-theme-choice]')?.dataset.themeChoice;
+    if (choice) setThemePreference(choice);
   });
 
   dom.chatSearchInput?.addEventListener('input', () => {
     state.chatSearchQuery = dom.chatSearchInput.value || '';
     renderChatList();
   });
-
-  // Batch delete
-  dom.batchSelectBtn?.addEventListener('click', () => {
-    if (state.batchMode) exitBatchMode();
-    else enterBatchMode();
-  });
+  dom.batchSelectBtn?.addEventListener('click', () => state.batchMode ? exitBatchMode() : enterBatchMode());
   dom.batchCancelBtn?.addEventListener('click', exitBatchMode);
   dom.batchDeleteBtn?.addEventListener('click', batchDeleteSelected);
 
-  // Chat title inline edit
-  const titleH1 = document.querySelector('.main-title-copy h1');
-  const titleInput = dom.chatTitleInput;
-  if (titleH1 && titleInput) {
-    titleH1.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); titleH1.click(); }
-    });
-    titleH1.addEventListener('click', () => {
-      if (state.activeTab !== 'chat') return;
+  const title = document.querySelector('.main-title-copy h1');
+  if (title && dom.chatTitleInput) {
+    const beginRename = () => {
       if (!state.currentChat) return;
-      titleH1.style.display = 'none';
-      titleInput.style.display = 'block';
-      titleInput.value = state.currentChat.title || '';
-      titleInput.focus();
-      titleInput.select();
+      title.hidden = true;
+      dom.chatTitleInput.hidden = false;
+      dom.chatTitleInput.value = state.currentChat.title || '';
+      dom.chatTitleInput.focus();
+      dom.chatTitleInput.select();
+    };
+    title.addEventListener('click', beginRename);
+    title.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); beginRename(); }
     });
-    titleInput.addEventListener('blur', () => {
-      if (!state.currentChat) return;
-      const newTitle = titleInput.value.trim();
-      if (newTitle && newTitle !== state.currentChat.title) {
-        renameChat(state.currentChat, newTitle);
-      }
-      titleInput.style.display = 'none';
-      titleH1.style.display = '';
+    dom.chatTitleInput.addEventListener('blur', () => {
+      const value = dom.chatTitleInput.value.trim();
+      dom.chatTitleInput.hidden = true;
+      title.hidden = false;
+      if (state.currentChat && value && value !== state.currentChat.title) renameChat(state.currentChat, value);
     });
-    titleInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { titleInput.blur(); }
-      if (e.key === 'Escape') {
-        titleInput.value = state.currentChat?.title || '';
-        titleInput.blur();
+    dom.chatTitleInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') dom.chatTitleInput.blur();
+      if (event.key === 'Escape') {
+        dom.chatTitleInput.value = state.currentChat?.title || '';
+        dom.chatTitleInput.blur();
       }
     });
   }
+
   dom.mobileSidebarBtn?.addEventListener('click', () => {
-    const sidebar = document.getElementById('sidebar');
     if (sidebar?.classList.contains('mobile-open')) closeSidebarOnMobile();
     else openSidebarOnMobile();
   });
@@ -2915,71 +2190,13 @@ function initEvents() {
   });
   dom.closeMobileMoreBtn?.addEventListener('click', closeMobileMoreMenu);
   dom.mobileMoreBackdrop?.addEventListener('click', closeMobileMoreMenu);
-  dom.mobileMoreMenu?.addEventListener('click', (e) => {
-    const actionBtn = e.target.closest('button[data-mobile-action]');
-    if (actionBtn?.dataset.mobileAction === 'sidebar') {
-      closeMobileMoreMenu();
-      openSidebarOnMobile({ refresh: true, resetSearch: true });
-      return;
-    }
-    if (actionBtn?.dataset.mobileAction === 'new-chat') {
-      closeMobileMoreMenu();
-      newChat();
-      return;
-    }
-    if (actionBtn?.dataset.mobileAction === 'settings') {
-      closeMobileMoreMenu();
-      openSettings();
-      return;
-    }
-
-    const themeBtn = e.target.closest('button[data-theme-choice]');
-    if (themeBtn?.dataset.themeChoice) {
-      setThemePreference(themeBtn.dataset.themeChoice);
-      return;
-    }
-
-    const tabBtn = e.target.closest('button[data-mobile-tab]');
-    if (tabBtn?.dataset.mobileTab) {
-      setActiveTab(tabBtn.dataset.mobileTab);
-      closeMobileMoreMenu();
-    }
-  });
-  dom.mobileModelBtn?.addEventListener('click', openModelSheet);
-  dom.closeModelSheet?.addEventListener('click', closeModelSheet);
-  dom.modelSheetBackdrop?.addEventListener('click', closeModelSheet);
-
-  dom.modelSheetList?.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.model-choice');
-    if (!btn || !btn.dataset.modelId) return;
-    const modelId = normalizeChatModel(btn.dataset.modelId);
-    setSelectedModel(modelId);
-    closeModelSheet();
-
-    if (state.currentChat) {
-      try {
-        await API.patch(`/chats/${state.currentChat.id}`, { model: modelId });
-        state.currentChat.model = modelId;
-        await loadChats();
-      } catch {
-        /* ignore */
-      }
-    }
-  });
-
-  dom.modelSelect.addEventListener('change', async () => {
-    const model = normalizeChatModel(dom.modelSelect.value);
-    setSelectedModel(model);
-    updateModelBadges();
-    if (state.currentChat && model) {
-      try {
-        await API.patch(`/chats/${state.currentChat.id}`, { model });
-        state.currentChat.model = model;
-        await loadChats();
-      } catch {
-        /* ignore */
-      }
-    }
+  dom.mobileMoreMenu?.addEventListener('click', event => {
+    const action = event.target.closest('button[data-mobile-action]')?.dataset.mobileAction;
+    if (action === 'sidebar') { closeMobileMoreMenu(); return openSidebarOnMobile({ refresh: true, resetSearch: true }); }
+    if (action === 'new-chat') { closeMobileMoreMenu(); return newChat(); }
+    if (action === 'settings') { closeMobileMoreMenu(); return openSettings(); }
+    const choice = event.target.closest('button[data-theme-choice]')?.dataset.themeChoice;
+    if (choice) setThemePreference(choice);
   });
 
   dom.messageInput.addEventListener('input', () => {
@@ -2988,215 +2205,92 @@ function initEvents() {
     saveInputDraft();
   });
   dom.inputArea?.addEventListener('focusin', () => syncMobileComposerFocus(true));
-  dom.inputArea?.addEventListener('focusout', () => {
-    window.setTimeout(() => syncMobileComposerFocus(dom.inputArea?.contains(document.activeElement)), 30);
-  });
-
-  dom.promptQuickbar?.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-prompt-action]');
-    if (!btn) return;
-    applyPromptShortcut(btn.dataset.promptAction);
-    closePromptAssistant({ returnFocus: false });
-  });
-
-  dom.promptAssistToggle?.addEventListener('click', togglePromptAssistant);
-
+  dom.inputArea?.addEventListener('focusout', () => window.setTimeout(() => syncMobileComposerFocus(dom.inputArea?.contains(document.activeElement)), 30));
   dom.webSearchToggle?.addEventListener('click', () => {
-    if (!state.webSearchAvailable || state.streaming) return;
-    setWebSearchEnabled(!state.webSearchEnabled);
+    if (state.webSearchAvailable && !state.streaming) setWebSearchEnabled(!state.webSearchEnabled);
   });
+  dom.messageInput.addEventListener('keydown', event => {
+    if (event.isComposing || event.keyCode === 229) return;
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      if (!state.streaming) sendMessage();
+    }
+  });
+  dom.sendBtn.addEventListener('click', () => state.streaming ? abortActiveRequest() : sendMessage());
+  dom.stopBtn?.addEventListener('click', abortActiveRequest);
 
-  dom.messageInput.addEventListener('keydown', (e) => {
-    if (e.isComposing || e.keyCode === 229) return;
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      if (state.streaming) return;
-      sendMessage();
+  dom.messagesContainer.addEventListener('click', async event => {
+    const codeButton = event.target.closest('button[data-code-copy]');
+    if (codeButton) {
+      const code = codeButton.closest('.code-block-shell')?.querySelector('pre code')?.textContent || '';
+      if (code) {
+        await copyMessageContent(code);
+        const original = codeButton.textContent;
+        codeButton.textContent = '已复制';
+        window.setTimeout(() => { codeButton.textContent = original || '复制代码'; }, 1100);
+      }
       return;
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (state.streaming) return;
-      sendMessage();
-    }
-  });
-
-  dom.sendBtn.addEventListener('click', () => {
-    if (state.streaming) {
-      abortActiveRequest();
-      return;
-    }
-    sendMessage();
-  });
-
-  dom.stopBtn?.addEventListener('click', () => {
-    abortActiveRequest();
-  });
-
-  dom.messagesContainer.addEventListener('click', async (e) => {
-    const codeCopyBtn = e.target.closest('button[data-code-copy]');
-    if (codeCopyBtn) {
-      const shell = codeCopyBtn.closest('.code-block-shell');
-      const code = shell?.querySelector('pre code')?.textContent || '';
-      if (!code) return;
-      await copyMessageContent(code);
-      const original = codeCopyBtn.textContent;
-      codeCopyBtn.textContent = '已复制';
-      codeCopyBtn.classList.add('is-success');
-      window.setTimeout(() => {
-        codeCopyBtn.textContent = original || '复制代码';
-        codeCopyBtn.classList.remove('is-success');
-      }, 1100);
-      return;
-    }
-
-    const messageMenuBtn = e.target.closest('button[data-message-menu-toggle]');
-    if (messageMenuBtn) {
-      const menu = messageMenuBtn.closest('.message-action-menu');
-      const messageEl = messageMenuBtn.closest('.message');
-      if (openMobileMessageActionSheet(messageEl, messageMenuBtn)) return;
+    const menuButton = event.target.closest('button[data-message-menu-toggle]');
+    if (menuButton) {
+      const menu = menuButton.closest('.message-action-menu');
+      const message = menuButton.closest('.message');
+      if (openMobileMessageActionSheet(message, menuButton)) return;
       const willOpen = !menu?.classList.contains('open');
       closeMessageActionMenus(menu);
       setMessageActionMenuOpen(menu, willOpen);
       return;
     }
-
-    const btn = e.target.closest('button[data-action]');
-    if (!btn) return;
+    const button = event.target.closest('button[data-action]');
+    if (!button) return;
     closeMessageActionMenus();
-    const messageEl = btn.closest('.message');
-    const messageId = messageEl?.dataset.messageId;
-    const action = btn.dataset.action;
-    await runMessageAction(action, messageId, btn);
+    await runMessageAction(button.dataset.action, button.closest('.message')?.dataset.messageId, button);
   });
-
-  document.addEventListener('click', async (e) => {
-    const sheetBtn = e.target.closest('#mobileMessageActionSheet button[data-action]');
-    if (!sheetBtn) return;
-    const action = sheetBtn.dataset.action;
-    const messageId = sheetBtn.dataset.messageId;
+  document.addEventListener('click', async event => {
+    const button = event.target.closest('#mobileMessageActionSheet button[data-action]');
+    if (!button) return;
     closeMobileMessageActionSheet({ returnFocus: false });
-    await runMessageAction(action, messageId, sheetBtn);
+    await runMessageAction(button.dataset.action, button.dataset.messageId, button);
   });
-  dom.messagesContainer.addEventListener('scroll', () => syncScrollToBottomButton(), { passive: true });
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.message-action-menu')) closeMessageActionMenus();
-    if (!e.target.closest('#promptQuickbar') && !e.target.closest('#promptAssistToggle')) {
-      closePromptAssistant({ returnFocus: false });
-    }
+  dom.messagesContainer.addEventListener('scroll', syncScrollToBottomButton, { passive: true });
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.message-action-menu')) closeMessageActionMenus();
   });
   dom.scrollToBottomBtn?.addEventListener('click', () => scrollToBottom());
 
   syncMobileWebMode();
+  syncResponsiveSidebarState();
   window.addEventListener('resize', syncMobileWebMode, { passive: true });
   window.visualViewport?.addEventListener?.('resize', syncMobileWebMode, { passive: true });
-  syncResponsiveSidebarState();
   window.addEventListener('resize', () => syncResponsiveSidebarState(), { passive: true });
 
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Tab') {
       const modal = state.activeDialog?.panel
         || (!dom.settingsModal?.classList.contains('hidden') ? dom.settingsModal : null)
         || (!dom.mobileMoreMenu?.classList.contains('hidden') ? dom.mobileMoreMenu : null)
         || (sidebar?.classList.contains('mobile-open') ? sidebar : null);
       if (modal) {
         const controls = [...modal.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')]
-          .filter(el => !el.closest('[inert]') && el.getClientRects().length);
+          .filter(element => !element.closest('[inert]') && element.getClientRects().length);
         const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
-          e.preventDefault(); last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
-          e.preventDefault(); first?.focus();
+        if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+          event.preventDefault(); last?.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+          event.preventDefault(); first?.focus();
         }
       }
     }
-    if (handleMacOSClientShortcut(e)) return;
-    if (e.key === 'Escape') {
+    if (event.key === 'Escape') {
       closeMessageActionMenus();
       closeMobileMessageActionSheet({ returnFocus: false });
       closeMobileMoreMenu();
       closeSidebarOnMobile();
-      closeModelSheet();
       closeSettings();
     }
   });
-
-  window.addEventListener('resize', () => {
-    if (!isMobileLayout()) closeModelSheet();
-  });
 }
-
 resetViewVisibility();
 initAuth();
 initEvents();
 checkAuth();
-
-function setActiveTab(tab) {
-  if (!canAccessTab(tab)) tab = 'chat';
-  state.activeTab = tab;
-  const tabChat = document.getElementById('tabChat');
-  const tabMemory = document.getElementById('tabMemory');
-  const tabStilltype = document.getElementById('tabStilltype');
-  const tabControl = document.getElementById('tabControl');
-  const tabTerminal = document.getElementById('tabTerminal');
-  const tabFinder = document.getElementById('tabFinder');
-  const inputArea = document.getElementById('inputArea');
-  const tabNav = document.getElementById('tabNav');
-  const buttons = tabNav?.querySelectorAll('.tab-btn') || [];
-
-  dom.chatView?.classList.toggle('is-chat-tab-active', tab === 'chat');
-  dom.chatView?.setAttribute('data-active-tab', tab);
-  buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
-  if (tabChat) tabChat.classList.toggle('hidden', tab !== 'chat');
-  if (tabMemory) tabMemory.classList.toggle('hidden', tab !== 'memory');
-  if (tabStilltype) tabStilltype.classList.toggle('hidden', tab !== 'stilltype');
-  if (tabControl) tabControl.classList.toggle('hidden', tab !== 'control');
-  if (tabTerminal) tabTerminal.classList.toggle('hidden', tab !== 'terminal');
-  if (tabFinder) tabFinder.classList.toggle('hidden', tab !== 'finder');
-  if (inputArea) inputArea.classList.toggle('hidden', tab !== 'chat');
-  updateChatHeaderTitle();
-  syncMobileMoreMenu();
-  if (tab !== 'chat') {
-    closePromptAssistant({ returnFocus: false });
-    closeMessageActionMenus();
-    syncMobileComposerFocus(false);
-  }
-
-  if (tab === 'memory') {
-    loadMemories();
-    refreshMemoryHealth();
-  }
-  syncScrollToBottomButton();
-}
-
-function initControlPanel() {
-  const tabNav = document.getElementById('tabNav');
-  if (!tabNav || initControlPanel.initialized) return;
-  initControlPanel.initialized = true;
-
-  const tabBtns = tabNav.querySelectorAll('.tab-btn');
-  const tabChat = document.getElementById('tabChat');
-  const tabMemory = document.getElementById('tabMemory');
-  const tabStilltype = document.getElementById('tabStilltype');
-  const tabControl = document.getElementById('tabControl');
-  const tabTerminal = document.getElementById('tabTerminal');
-  const tabFinder = document.getElementById('tabFinder');
-  const inputArea = document.getElementById('inputArea');
-
-  tabBtns.forEach(btn => {
-    const tab = btn.dataset.tab || 'chat';
-    const allowed = canAccessTab(tab);
-    btn.hidden = !allowed;
-    btn.style.display = allowed ? '' : 'none';
-  });
-
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (btn.hidden || btn.style.display === 'none') return;
-      setActiveTab(btn.dataset.tab || 'chat');
-    });
-  });
-
-  setActiveTab('chat');
-
-}

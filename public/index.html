@@ -4,22 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
-  <meta name="app-mode" content="server-chat-only">
   <title>AI Dialogue</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/x-icon" href="favicon-dark.ico" media="(prefers-color-scheme: dark)">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="apple-touch-icon" href="apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="style.css?v=20260829">
-  <link rel="stylesheet" href="dialogue.css?v=20260829">
   <script src="vendor/marked.min.js"></script>
   <link rel="stylesheet" href="vendor/github-dark.min.css">
 </head>
-<body class="selected-ui">
-  <div class="bg-orbit bg-orbit-1"></div>
-  <div class="bg-orbit bg-orbit-2"></div>
-  <div class="bg-grid"></div>
-
+<body class="selected-ui server-chat-only">
   <!-- ========== Auth View ========== -->
   <div id="authView" class="view hidden">
     <section class="auth-scene">
@@ -31,17 +25,11 @@
         <h1>AI Dialogue</h1>
         <p>轻巧、连续、适合手机使用的私人 AI 工作台。</p>
 
-        <div class="auth-hero-notes">
-          <div class="note-chip">会话持久保存</div>
-          <div class="note-chip">Markdown 渲染</div>
-          <div class="note-chip">手机可用</div>
-        </div>
       </div>
 
       <div class="auth-panel">
         <div class="auth-card">
           <div class="auth-header">
-            <div class="auth-badge">secure access</div>
             <h2>欢迎回来</h2>
             <p>登录后继续你的对话。</p>
           </div>
@@ -169,222 +157,20 @@
             </div>
           </header>
 
-          <nav class="tab-nav" id="tabNav">
-            <button class="tab-btn active" data-tab="chat" type="button">对话</button>
-            <button class="tab-btn hidden" data-tab="memory" type="button">记忆</button>
-            <button class="tab-btn hidden" data-tab="stilltype" type="button">打字</button>
-          </nav>
-
           <section class="content-stage">
             <div id="tabChat">
               <div id="emptyState" class="empty-state">
                 <h2>今天想聊点什么？</h2>
                 <p class="empty-memory-hint">直接在下方输入，开始对话。</p>
-                <div class="empty-models" id="emptyModels" hidden></div>
               </div>
               <div id="messagesContainer" class="messages-container hidden" role="region" aria-label="对话记录" tabindex="0"></div>
             </div>
-
-            <div id="tabMemory" class="hidden memory-page">
-              <div class="memory-page-head">
-                <div>
-                  <div class="control-kicker">Local memory</div>
-                  <h2>记忆库</h2>
-                  <p>手动保存长期记忆，只会检索当前登录用户自己的内容。</p>
-                </div>
-                <div id="memoryHealth" class="memory-health">检测中…</div>
-              </div>
-
-              <div class="memory-grid">
-                <section class="memory-panel memory-compose">
-                  <div class="section-head">
-                    <div>
-                      <div class="section-kicker">Manual save</div>
-                      <h3>添加记忆</h3>
-                    </div>
-                    <button id="memoryComposeToggle" class="memory-compose-toggle" type="button" aria-expanded="false">展开</button>
-                  </div>
-                  <div id="memoryComposeBody" class="memory-compose-body hidden">
-                    <input id="memoryTitleInput" class="memory-input" type="text" maxlength="120" placeholder="标题，可选">
-                    <textarea id="memoryContentInput" class="memory-textarea" rows="5" placeholder="写下你希望 AI 长期记住的信息…"></textarea>
-                    <div class="memory-compose-actions">
-                      <label class="memory-toggle">
-                        <input id="memoryEnabledInput" type="checkbox" checked>
-                        <span>启用检索</span>
-                      </label>
-                      <button id="memorySaveBtn" class="btn btn-primary" type="button">保存记忆</button>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="memory-panel memory-library">
-                  <div class="memory-toolbar">
-                    <input id="memorySearchInput" class="memory-search" type="search" placeholder="搜索记忆…">
-                    <select id="memoryFilterSelect" class="memory-filter">
-                      <option value="all">全部</option>
-                      <option value="enabled">已启用</option>
-                      <option value="disabled">已禁用</option>
-                    </select>
-                    <button id="memoryRefreshBtn" class="finder-tool-btn" type="button">刷新</button>
-                  </div>
-                  <div id="memoryList" class="memory-list"></div>
-                  <div id="memoryEmpty" class="memory-empty hidden">暂无记忆。</div>
-                </section>
-              </div>
-            </div>
-
-            <div id="tabStilltype" class="hidden stilltype-page" aria-label="打字练习">
-              <main class="stilltype-app" data-stilltype-root>
-                <section class="stilltype-screen stilltype-setup-screen is-active" id="stilltypeSetupScreen" aria-labelledby="stilltypeAppTitle">
-                  <div class="stilltype-setup-wrap">
-                    <header class="stilltype-setup-header">
-                      <p class="stilltype-quiet-label">Typing practice</p>
-                      <h2 id="stilltypeAppTitle">Stilltype</h2>
-                      <p class="stilltype-intro">
-                        Paste a passage, then move through it one line at a time.
-                      </p>
-                    </header>
-
-                    <div class="stilltype-editor-panel">
-                      <label class="stilltype-text-label" for="stilltypeSourceText">练习文本</label>
-                      <textarea
-                        id="stilltypeSourceText"
-                        class="stilltype-source-text"
-                        spellcheck="false"
-                        autocomplete="off"
-                      ></textarea>
-                    </div>
-
-                    <aside class="stilltype-start-panel" aria-label="练习操作">
-                      <div class="stilltype-panel-copy">
-                        <p class="stilltype-quiet-label">Focus mode</p>
-                        <h3>逐行打字，错误即时回退。</h3>
-                        <p>适合练习英文段落、短句节奏和键盘准确度。原有 Stilltype 的输入、统计和结果体验保持不变。</p>
-                      </div>
-                      <div class="stilltype-shortcuts">
-                        <span>Enter 下一行</span>
-                        <span>Backspace 撤回</span>
-                        <span>Esc 返回</span>
-                      </div>
-                      <div class="stilltype-setup-actions">
-                        <button class="stilltype-button stilltype-primary-button" id="stilltypeStartButton" type="button">
-                          开始练习
-                        </button>
-                        <button class="stilltype-button stilltype-ghost-button" id="stilltypeSampleButton" type="button">
-                          载入示例
-                        </button>
-                        <button class="stilltype-button stilltype-ghost-button" id="stilltypeClearButton" type="button">
-                          清空文本
-                        </button>
-                      </div>
-                    </aside>
-                  </div>
-                </section>
-
-                <section class="stilltype-screen stilltype-typing-screen" id="stilltypeTypingScreen" aria-label="打字练习界面">
-                  <header class="stilltype-typing-topbar">
-                    <button class="stilltype-text-button" id="stilltypeBackButton" type="button" aria-label="返回文本输入界面">
-                      更换文本
-                    </button>
-                    <div class="stilltype-stats-bar" aria-live="polite">
-                      <span id="stilltypeLineProgress">第 0 / 0 行</span>
-                      <span id="stilltypeAccuracyStat">准确率 100%</span>
-                      <span id="stilltypeTimeStat">00:00</span>
-                      <span id="stilltypeSpeedStat">WPM 0 · CPM 0</span>
-                    </div>
-                  </header>
-
-                  <div class="stilltype-typing-stage" id="stilltypeTypingStage">
-                    <div class="stilltype-typing-line" id="stilltypeTypingLine" aria-live="polite"></div>
-                    <p class="stilltype-line-transition-hint" id="stilltypeLineTransitionHint" aria-live="polite"></p>
-                    <p class="stilltype-mistake-toast" id="stilltypeMistakeToast" aria-live="polite">line reset</p>
-                    <p class="stilltype-hint" id="stilltypeTypingHint">Click anywhere to keep focus. Esc returns.</p>
-                  </div>
-
-                  <input
-                    class="stilltype-keyboard-capture"
-                    id="stilltypeKeyboardInput"
-                    type="text"
-                    inputmode="text"
-                    autocomplete="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    aria-label="键盘输入捕获"
-                  />
-                </section>
-
-                <section class="stilltype-screen stilltype-result-screen" id="stilltypeResultScreen" aria-labelledby="stilltypeResultTitle">
-                  <div class="stilltype-result-panel">
-                    <p class="stilltype-quiet-label">Completed</p>
-                    <h2 id="stilltypeResultTitle">练习完成</h2>
-
-                    <dl class="stilltype-result-grid">
-                      <div>
-                        <dt>总用时</dt>
-                        <dd id="stilltypeResultTime">00:00</dd>
-                      </div>
-                      <div>
-                        <dt>准确率</dt>
-                        <dd id="stilltypeResultAccuracy">100%</dd>
-                      </div>
-                      <div>
-                        <dt>WPM</dt>
-                        <dd id="stilltypeResultWpm">0</dd>
-                      </div>
-                      <div>
-                        <dt>错误次数</dt>
-                        <dd id="stilltypeResultErrors">0</dd>
-                      </div>
-                      <div>
-                        <dt>完成字符数</dt>
-                        <dd id="stilltypeResultChars">0</dd>
-                      </div>
-                    </dl>
-
-                    <section class="stilltype-mistake-summary" id="stilltypeResultMistakeSummary" aria-label="错误位置汇总">
-                      <h3>错误位置</h3>
-                      <div id="stilltypeResultMistakeList">没有错误标记</div>
-                    </section>
-
-                    <div class="stilltype-result-actions">
-                      <button class="stilltype-button stilltype-primary-button" id="stilltypeRestartButton" type="button">
-                        重新开始
-                      </button>
-                      <button class="stilltype-button stilltype-ghost-button" id="stilltypeChangeTextButton" type="button">
-                        更换文本
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              </main>
-            </div>
-
           </section>
 
           <button id="scrollToBottomBtn" class="scroll-bottom-btn hidden" type="button" title="回到最新" aria-label="回到最新">↓</button>
 
           <footer id="inputArea" class="input-area">
-            <div class="input-topline">
-              <div class="input-topline-left">
-                <span class="input-label">输入</span>
-                <button id="mobileModelBtn" class="mobile-model-pill mobile-only" type="button" hidden aria-hidden="true">
-                  <span class="mobile-model-pill-label">模型</span>
-                  <span id="mobileCurrentModelLabel" class="mobile-model-pill-value">未选择</span>
-                </button>
-              </div>
-              <span class="input-hint-inline desktop-only">Enter 发送 · Shift+Enter 换行</span>
-            </div>
-            <div id="promptQuickbar" class="prompt-quickbar" aria-label="输入助手快捷提示" aria-hidden="true" inert hidden>
-              <button class="prompt-chip" type="button" data-prompt-action="summarize">总结这段</button>
-              <button class="prompt-chip" type="button" data-prompt-action="expand">继续展开</button>
-              <button class="prompt-chip" type="button" data-prompt-action="rewrite">改写清楚</button>
-              <button class="prompt-chip" type="button" data-prompt-action="steps">列步骤</button>
-            </div>
             <div class="composer-shell">
-              <button id="promptAssistToggle" class="prompt-assist-toggle" type="button" aria-expanded="false" aria-controls="promptQuickbar" title="输入助手" hidden aria-hidden="true">
-                <span class="prompt-assist-icon">✦</span>
-                <span class="prompt-assist-label">助手</span>
-              </button>
               <button id="webSearchToggle" class="web-search-toggle hidden" type="button" aria-pressed="false" title="联网搜索未配置" disabled hidden>
                 <span class="web-search-icon">⌕</span>
                 <span class="web-search-label">联网</span>
@@ -404,9 +190,6 @@
                 <span class="stop-square" aria-hidden="true"></span>
               </button>
             </div>
-            <p class="input-hint">
-              AI 可能出错，重要信息请核对。
-            </p>
           </footer>
         </div>
       </main>
@@ -428,14 +211,6 @@
           <button class="mobile-more-item" type="button" data-mobile-action="settings">设置</button>
         </div>
       </div>
-      <div class="mobile-more-group mobile-more-page-group">
-        <div class="mobile-more-group-label">页面</div>
-        <div class="mobile-more-section mobile-more-page-actions">
-          <button class="mobile-more-item" type="button" data-mobile-tab="chat">对话</button>
-          <button class="mobile-more-item hidden" type="button" data-mobile-tab="memory">记忆</button>
-          <button class="mobile-more-item hidden" type="button" data-mobile-tab="stilltype">打字</button>
-        </div>
-      </div>
       <div class="mobile-more-group mobile-more-theme-group">
         <div class="mobile-more-group-label">
           <span>外观</span>
@@ -448,18 +223,6 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <div id="modelSheetBackdrop" class="sheet-backdrop hidden"></div>
-  <div id="modelSheet" class="model-sheet hidden" role="dialog" aria-modal="true" aria-label="Model selector">
-    <div class="model-sheet-head">
-      <div>
-        <div class="model-sheet-kicker">Model Selection</div>
-        <div class="model-sheet-title">选择模型</div>
-      </div>
-      <button id="closeModelSheet" class="icon-btn" type="button" title="Close">✕</button>
-    </div>
-    <div id="modelSheetList" class="model-sheet-list"></div>
   </div>
 
   <!-- ========== Settings ========== -->
@@ -518,8 +281,6 @@
       </section>
     </div>
   </div>
-
-  <script src="stilltype.js?v=20260628"></script>
   <script src="app.js?v=20260829"></script>
 </body>
 </html>

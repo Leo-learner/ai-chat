@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-for (const name of ['style.css', 'dialogue.css']) {
+for (const name of ['style.css']) {
 const cssPath = path.join(__dirname, '..', 'public', name);
 const css = fs.readFileSync(cssPath, 'utf8');
 let balance = 0;
