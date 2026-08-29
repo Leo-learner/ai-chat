@@ -1,0 +1,729 @@
+/* Approved AI Dialogue layout, 2026-08-29.
+   This isolated presentation layer overrides the legacy shell only.
+   Chat, account, provider, and persistence logic remain in app.js/server.js. */
+html:root {
+  --dialogue-bg: #23292d;
+  --dialogue-ai: #30383d;
+  --dialogue-input: #282f34;
+  --dialogue-text: #e5e8e9;
+  --dialogue-muted: #aab4ba;
+  --dialogue-line: #465157;
+  --dialogue-accent: #b6cec5;
+  --dialogue-ink: #243730;
+  --dialogue-hover: #394449;
+  --dialogue-avatar: #424c52;
+  --dialogue-reading: 920px;
+  --dialogue-rail: 76px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+html[data-theme="light"] {
+  --dialogue-bg: #fafbf9;
+  --dialogue-ai: #eef2ef;
+  --dialogue-input: #ffffff;
+  --dialogue-text: #29332f;
+  --dialogue-muted: #626e68;
+  --dialogue-line: #cbd3ce;
+  --dialogue-accent: #426b59;
+  --dialogue-ink: #ffffff;
+  --dialogue-hover: #e4ebe5;
+  --dialogue-avatar: #dde4df;
+}
+html body.selected-ui {
+  --bg-0: var(--dialogue-bg);
+  --bg-1: var(--dialogue-bg);
+  --bg-2: var(--dialogue-input);
+  --text: var(--dialogue-text);
+  --subtext: var(--dialogue-muted);
+  --muted: var(--dialogue-muted);
+  --accent: var(--dialogue-accent);
+  --accent-2: var(--dialogue-accent);
+  --accent-ink: var(--dialogue-ink);
+  --accent-glow: var(--dialogue-hover);
+  --line: var(--dialogue-line);
+  --line-strong: var(--dialogue-line);
+  --panel: var(--dialogue-input);
+  --panel-strong: var(--dialogue-input);
+  --panel-soft: var(--dialogue-hover);
+  --server-bg: var(--dialogue-bg);
+  --server-surface: var(--dialogue-bg);
+  --server-surface-2: var(--dialogue-ai);
+  --server-text: var(--dialogue-text);
+  --server-muted: var(--dialogue-muted);
+  --server-line: var(--dialogue-line);
+  --server-accent: var(--dialogue-accent);
+  margin: 0;
+  color: var(--dialogue-text);
+  font-family: var(--font-sans);
+  background: var(--dialogue-bg) !important;
+  -webkit-font-smoothing: antialiased;
+}
+html body.selected-ui :focus-visible {
+  outline: 2px solid var(--dialogue-accent) !important;
+  outline-offset: 4px;
+}
+html body.selected-ui .hidden,
+html body.selected-ui [hidden] { display: none !important; }
+.ui-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  mask: var(--icon) center / contain no-repeat;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+}
+.icon-chat { --icon: url('/vendor/lucide/message-square.svg'); }
+.icon-plus { --icon: url('/vendor/lucide/plus.svg'); }
+.icon-history { --icon: url('/vendor/lucide/clock-3.svg'); }
+.icon-search { --icon: url('/vendor/lucide/search.svg'); }
+.icon-settings { --icon: url('/vendor/lucide/settings-2.svg'); }
+.icon-send { --icon: url('/vendor/lucide/send.svg'); }
+.icon-chevron { --icon: url('/vendor/lucide/chevron-down.svg'); }
+.icon-close { --icon: url('/vendor/lucide/x.svg'); }
+
+/* Fixed shell, a single scrolling conversation region. */
+#dialogueApp body.selected-ui.server-chat-only #chatView,
+#dialogueApp body.selected-ui.server-chat-only #chatView.active {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100dvh !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: var(--dialogue-bg) !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .shell {
+  display: grid !important;
+  grid-template-columns: var(--dialogue-rail) minmax(0, 1fr) !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  margin: 0 !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #main {
+  grid-column: 2;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-frame {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--dialogue-bg) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .dialogue-rail {
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 0 28px;
+  border-right: 1px solid var(--dialogue-line);
+  background: var(--dialogue-bg);
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .rail-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dialogue-muted);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .rail-button:hover {
+  color: var(--dialogue-text);
+  background: var(--dialogue-hover);
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .rail-brand { color: var(--dialogue-text); }
+#dialogueApp body.selected-ui.server-chat-only #chatView .rail-links { display: grid; gap: 20px; margin-top: 26px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .rail-settings { margin-top: auto; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .rail-button .ui-icon { width: 27px; height: 27px; }
+
+/* Title and wordmark stay separate; clicking the title retains rename. */
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-header {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 78px !important;
+  min-height: 78px !important;
+  margin: 0 !important;
+  padding: 0 32px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--dialogue-line) !important;
+  background: var(--dialogue-bg) !important;
+  box-shadow: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .dialogue-wordmark {
+  position: absolute;
+  left: 32px;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 450;
+  letter-spacing: -.4px;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-title-block { display: flex !important; min-width: 0; flex: 0 1 auto !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+  max-width: min(420px, 40vw) !important;
+  width: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy h1 {
+  margin: 0 !important;
+  max-width: 100% !important;
+  color: var(--dialogue-text) !important;
+  font-size: 18px !important;
+  font-weight: 550 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.5 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .chat-title-edit {
+  min-width: 0;
+  width: 260px;
+  height: 38px;
+  border: 1px solid var(--dialogue-line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--dialogue-text);
+  background: var(--dialogue-input);
+  font: inherit;
+  font-size: 17px;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .header-actions { position: absolute; right: 16px; display: flex; gap: 4px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  border: none !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--dialogue-muted) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .icon-btn:hover { background: var(--dialogue-hover) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .title-history { width: 28px; min-width: 28px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .title-history .ui-icon { width: 18px; height: 18px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #tabNav,
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-kicker,
+#dialogueApp body.selected-ui.server-chat-only #chatView .input-topline,
+#dialogueApp body.selected-ui.server-chat-only #chatView .input-hint,
+#dialogueApp body.selected-ui.server-chat-only #chatView .mobile-only { display: none !important; }
+
+/* The band is full width. Only the text column is constrained.
+   24px vertical padding and 30px line height keep short messages compact. */
+#dialogueApp body.selected-ui.server-chat-only #chatView .content-stage {
+  position: relative !important;
+  inset: auto !important;
+  border-radius: 0 !important;
+  display: flex !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  background: var(--dialogue-bg) !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #tabChat {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer {
+  position: relative !important;
+  inset: auto !important;
+  height: auto !important;
+  display: block !important;
+  flex: 1 1 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 0 20px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dialogue-line) transparent;
+  background: var(--dialogue-bg) !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer.hidden { display: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: 34px minmax(0, 1fr) !important;
+  align-items: start !important;
+  column-gap: 34px !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 24px max(32px, calc((100% - var(--dialogue-reading)) / 2)) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  background: var(--dialogue-bg) !important;
+  animation: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-role-assistant { background: var(--dialogue-ai) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-avatar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: none !important;
+  width: 34px !important;
+  height: 34px !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 4px !important;
+  color: var(--dialogue-text) !important;
+  background: var(--dialogue-avatar) !important;
+  box-shadow: none !important;
+  font: 500 16px/1 var(--font-sans) !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-role-assistant .message-avatar {
+  color: var(--dialogue-ink) !important;
+  background: var(--dialogue-accent) !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-body {
+  position: relative !important;
+  display: block !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-content {
+  min-width: 0 !important;
+  padding: 1px 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--dialogue-text) !important;
+  font-size: 17px !important;
+  line-height: 1.8 !important;
+  font-weight: 400 !important;
+  overflow-wrap: anywhere;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content p { margin: 0 0 12px !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content > :first-child { margin-top: 0 !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content > :last-child { margin-bottom: 0 !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content ul,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content ol { padding-left: 1.5em; margin: 12px 0; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content li { margin: 4px 0; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content h1,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content h2,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content h3 { font-size: 1.12em; line-height: 1.6; margin: 18px 0 8px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content table { display: block; width: max-content; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: .9em; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content th,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content td { border: 1px solid var(--dialogue-line); padding: 8px 12px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content img { max-width: 100%; height: auto; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content pre { white-space: pre; overflow-x: auto; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content .code-block-shell { border-radius: 8px !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content pre code { font-size: 13px; line-height: 1.7; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-actions {
+  position: absolute !important;
+  right: 0 !important;
+  top: -19px !important;
+  bottom: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  opacity: 0;
+  transition: opacity .12s;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message:hover .message-actions,
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message:focus-within .message-actions,
+#dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .is-streaming .message-actions { opacity: 1; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-status {
+  min-height: 22px !important;
+  height: auto !important;
+  padding: 2px 6px !important;
+  font-size: 11px !important;
+  line-height: 18px !important;
+  border: none !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: var(--dialogue-muted) !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action:hover { background: var(--dialogue-hover) !important; color: var(--dialogue-text) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action-mobile-only { display: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action-menu { position: relative !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action-popover {
+  display: none !important;
+  position: absolute !important;
+  top: 25px !important;
+  right: 0 !important;
+  bottom: auto !important;
+  left: auto !important;
+  z-index: 70 !important;
+  min-width: 132px !important;
+  padding: 6px !important;
+  border: 1px solid var(--dialogue-line) !important;
+  border-radius: 8px !important;
+  background: var(--dialogue-input) !important;
+  box-shadow: 0 8px 28px #0002 !important;
+  transform: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action-menu.open .message-action-popover { display: grid !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action-popover .message-action { font-size: 13px !important; padding: 8px 10px !important; text-align: left; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action-sheet-head { display: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-extras { margin-top: 12px; font-size: 12px; color: var(--dialogue-muted); }
+#dialogueApp body.selected-ui.server-chat-only #chatView .older-messages-btn { display: block; margin: 16px auto; color: var(--dialogue-muted); background: transparent; border: 1px solid var(--dialogue-line); border-radius: 6px; padding: 8px 14px; }
+
+/* Composer keeps a small, distinct send target inside its border. */
+#dialogueApp body.selected-ui.server-chat-only #chatView .input-area {
+  position: relative !important;
+  inset: auto !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  max-width: none !important;
+  padding: 24px 32px 40px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: var(--dialogue-bg) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  transform: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .composer-shell {
+  position: relative !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  width: min(100%, 820px) !important;
+  min-height: 64px !important;
+  margin: 0 auto !important;
+  padding: 10px 12px 10px 24px !important;
+  gap: 12px !important;
+  border: 1px solid var(--dialogue-line) !important;
+  border-radius: 8px !important;
+  background: var(--dialogue-input) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  transition: border-color .15s;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .composer-shell:focus-within { border-color: var(--dialogue-accent) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #messageInput {
+  position: relative !important;
+  inset: auto !important;
+  height: auto !important;
+  display: block !important;
+  flex: 1 1 0 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  max-height: 240px !important;
+  margin: 0 !important;
+  padding: 7px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--dialogue-text) !important;
+  font: 400 16px/28px var(--font-sans) !important;
+  outline: none !important;
+  resize: none;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #messageInput::placeholder { color: var(--dialogue-muted) !important; opacity: .85; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .btn-send {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: static !important;
+  flex: 0 0 42px !important;
+  width: 42px !important;
+  min-width: 42px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--dialogue-text) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .btn-send:hover:not(:disabled) { background: var(--dialogue-hover) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .btn-send:disabled { color: var(--dialogue-muted) !important; opacity: .45 !important; cursor: default; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .btn-send.hidden { display: none !important; }
+.stop-square { width: 14px; height: 14px; border-radius: 3px; background: currentColor; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .empty-state {
+  flex: 1;
+  min-height: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  padding: 32px !important;
+  color: var(--dialogue-text);
+  background: transparent !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .empty-state.hidden { display: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .empty-state h2 { font-size: 26px !important; font-weight: 500 !important; margin: 0 !important; color: var(--dialogue-text) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .empty-state p { font-size: 14px; color: var(--dialogue-muted) !important; margin: 0; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .scroll-bottom-btn {
+  position: absolute !important;
+  right: 28px !important;
+  bottom: 138px !important;
+  width: 36px !important;
+  height: 36px !important;
+  border: 1px solid var(--dialogue-line) !important;
+  border-radius: 50% !important;
+  color: var(--dialogue-text) !important;
+  background: var(--dialogue-input) !important;
+  box-shadow: none !important;
+}
+
+/* History is an overlay drawer, never a second permanent text column. */
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar {
+  position: fixed !important;
+  inset: 0 auto 0 var(--dialogue-rail) !important;
+  z-index: 220 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 320px !important;
+  max-width: calc(100vw - var(--dialogue-rail)) !important;
+  height: 100dvh !important;
+  max-height: none !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-right: 1px solid var(--dialogue-line) !important;
+  border-radius: 0 !important;
+  background: var(--dialogue-bg) !important;
+  box-shadow: 12px 0 40px #0002 !important;
+  transform: translateX(-24px) !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: transform .18s, opacity .18s !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar.mobile-open {
+  transform: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar.hidden { display: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .sidebar-top { padding: 22px 20px 16px !important; background: transparent !important; border: 0 !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .sidebar-title-row { margin-bottom: 16px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar h3 { font-size: 17px; font-weight: 550; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .new-chat-btn { min-height: 42px; border-radius: 7px; font-size: 14px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .sidebar-chats-wrap { padding: 0 14px !important; background: transparent !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-search-shell { padding: 0 6px 12px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-search-input { border-radius: 7px !important; font-size: 14px; min-height: 40px; box-shadow: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .sidebar-section-label { padding: 8px 8px; font-size: 12px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-item { border: 0 !important; border-radius: 8px; margin: 3px 0; padding: 12px 10px; background: transparent !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-item:hover,
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-item.active { background: var(--dialogue-hover) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-item.active { box-shadow: inset 2px 0 var(--dialogue-accent) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-item-title { font-size: 14px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-item-meta { font-size: 11px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .chat-item-delete { color: var(--dialogue-muted); font-size: 11px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .sidebar-footer { padding: 16px 20px !important; background: transparent !important; border-top: 1px solid var(--dialogue-line); }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .user-card { padding: 0 !important; background: transparent !important; border: 0 !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebar .user-avatar { border-radius: 5px; background: var(--dialogue-hover) !important; color: var(--dialogue-text) !important; box-shadow: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView #sidebarBackdrop { z-index: 210 !important; background: #10181766 !important; }
+html body.selected-ui .settings-kicker,
+html body.selected-ui .auth-badge,
+html body.selected-ui .auth-hero-notes { display: none !important; }
+html body.selected-ui .settings-modal { border-radius: 12px; background: var(--dialogue-input); }
+html body.selected-ui .settings-head { padding: 16px 22px; }
+html body.selected-ui .settings-title { font-size: 17px; }
+html body.selected-ui .settings-theme-btn { border-radius: 6px; }
+html body.selected-ui .settings-theme-btn.active { box-shadow: inset 0 -2px var(--dialogue-accent); }
+html body.selected-ui .settings-actions .btn-primary { border-radius: 7px; }
+html body.selected-ui .settings-backdrop { backdrop-filter: none; }
+html body.selected-ui .auth-hero p { max-width: 30em; }
+html body.selected-ui .auth-panel,
+html body.selected-ui .auth-card { box-shadow: none !important; background: var(--dialogue-input) !important; border-color: var(--dialogue-line) !important; }
+html body.selected-ui .auth-hero h1 { color: var(--dialogue-text) !important; }
+html body.selected-ui .auth-card input { background: var(--dialogue-bg) !important; color: var(--dialogue-text) !important; border-color: var(--dialogue-line) !important; }
+html body.selected-ui .toast { color: var(--dialogue-text) !important; background: var(--dialogue-input) !important; border: 1px solid var(--dialogue-line) !important; box-shadow: 0 6px 20px #0002 !important; }
+
+@media (min-width: 1400px) {
+  html:root { --dialogue-rail: 96px; --dialogue-reading: 1100px; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .main-header { flex-basis: 98px !important; min-height: 98px !important; padding-inline: 40px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .dialogue-wordmark { left: 40px; font-size: 24px; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy h1 { font-size: 22px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .dialogue-rail { padding-top: 28px; padding-bottom: 72px; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .rail-links { gap: 40px; margin-top: 52px; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .rail-button .ui-icon { width: 32px; height: 32px; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message { grid-template-columns: 44px minmax(0, 1fr) !important; gap: 52px !important; padding-block: 30px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-avatar { width: 44px !important; height: 44px !important; font-size: 22px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-content { font-size: 22px !important; line-height: 1.9 !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .composer-shell { width: min(100%, 926px) !important; min-height: 80px !important; padding: 17px 18px 17px 34px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messageInput { font-size: 20px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .input-area { padding-bottom: 60px !important; }
+}
+@media (max-width: 720px) {
+  html:root { --dialogue-rail: 0px; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .dialogue-rail,
+  #dialogueApp body.selected-ui.server-chat-only #chatView .dialogue-wordmark { display: none !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .shell { display: flex !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .main-header { flex: 0 0 auto !important; min-height: 62px !important; padding: calc(8px + env(safe-area-inset-top)) 10px 8px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy { max-width: calc(100vw - 174px) !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy h1 { font-size: 16px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .main-header .mobile-only { display: flex !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #mobileSidebarBtn { position: absolute; left: 8px; top: calc(10px + env(safe-area-inset-top)); }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .header-actions { right: 8px; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .title-history { display: none !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message { grid-template-columns: 28px minmax(0, 1fr) !important; column-gap: 14px !important; padding: 22px 18px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-avatar { width: 28px !important; height: 28px !important; font-size: 13px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-content { font-size: 16px !important; line-height: 1.8 !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messagesContainer .message-actions { top: -20px !important; opacity: 1; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .message-actions > .message-action { display: none !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .message-action-more { min-width: 40px; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .input-area { padding: 12px 12px calc(16px + env(safe-area-inset-bottom)) !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .composer-shell { min-height: 56px !important; border-radius: 8px !important; padding: 6px 8px 6px 16px !important; gap: 8px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #messageInput { font-size: 16px !important; max-height: 180px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .empty-state h2 { font-size: 23px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #sidebar { width: min(340px, 88vw) !important; max-width: 88vw !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView .scroll-bottom-btn { bottom: 100px !important; right: 16px !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #mobileMoreMenu.open { display: flex !important; background: var(--dialogue-input) !important; color: var(--dialogue-text) !important; }
+  #dialogueApp body.selected-ui.server-chat-only #chatView #mobileMoreBackdrop.open { display: block !important; }
+  html body.selected-ui .settings-modal { border-radius: 14px 14px 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html body.selected-ui *, html body.selected-ui *::before, html body.selected-ui *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-action-more { display: inline-flex !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message::before,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message::after,
+#dialogueApp body.selected-ui.server-chat-only #chatView .input-area::before,
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy::before { display: none !important; }
+
+/* Explicitly suppress controls disabled by the server build, including legacy
+   mobile selectors that used to force hidden elements back into the layout. */
+#dialogueApp body.selected-ui.server-chat-only #chatView [hidden],
+#dialogueApp body.selected-ui.server-chat-only #chatView #promptAssistToggle,
+#dialogueApp body.selected-ui.server-chat-only #chatView #promptQuickbar,
+#dialogueApp body.selected-ui.server-chat-only #chatView #webSearchToggle { display: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .header-actions { display: flex !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy { justify-content: center !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .icon-btn::before,
+#dialogueApp body.selected-ui.server-chat-only #chatView .icon-btn::after,
+#dialogueApp body.selected-ui.server-chat-only #chatView .header-actions::before { display: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .icon-btn .ui-icon {
+  display: block !important;
+  width: 24px !important;
+  height: 24px !important;
+  background: currentColor !important;
+  mask: var(--icon) center / contain no-repeat !important;
+  -webkit-mask: var(--icon) center / contain no-repeat !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .title-history .ui-icon { width: 18px !important; height: 18px !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy,
+#dialogueApp body.selected-ui.server-chat-only #chatView .icon-btn {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView #mobileMoreBtn { font-size: 24px !important; line-height: 1 !important; }
+@media (max-width: 720px) {
+  #dialogueApp body.selected-ui.server-chat-only #chatView .main-title-copy {
+    position: absolute !important;
+    left: 56px !important;
+    right: 96px !important;
+    top: calc(10px + env(safe-area-inset-top)) !important;
+    width: auto !important;
+    max-width: none !important;
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content pre,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content pre code {
+  white-space: pre !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content pre { overflow-x: auto !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content table {
+  display: block !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  table-layout: auto !important;
+  border-radius: 6px !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content th,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content td {
+  min-width: 92px;
+  white-space: nowrap;
+  word-break: normal;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content blockquote { border-radius: 0 6px 6px 0 !important; padding: 10px 14px !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .code-block-copy { border-radius: 4px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content table,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content tr,
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content td {
+  color: var(--dialogue-text) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-content th { color: var(--dialogue-text) !important; background: var(--dialogue-hover) !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .code-block-toolbar { background: #23282d !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .code-block-shell { box-shadow: none !important; }
+
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-extra-panel { border: 0 !important; border-radius: 4px !important; background: transparent !important; box-shadow: none !important; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-extra-panel summary { justify-content: flex-start; gap: 8px; padding: 2px 0; color: var(--dialogue-muted); font-size: 12px; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .message-extra-summary { display: none; }
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-frame::before,
+#dialogueApp body.selected-ui.server-chat-only #chatView .main-frame::after,
+#dialogueApp body.selected-ui.server-chat-only #chatView .empty-state::before,
+#dialogueApp body.selected-ui.server-chat-only #chatView .empty-state::after { display: none !important; content: none !important; }

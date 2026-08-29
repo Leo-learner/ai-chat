@@ -460,6 +460,7 @@ function isMobileLayout() {
 
 function isServerChatDockedSidebar() {
   return IS_SERVER_CHAT_ONLY
+    && !document.body.classList.contains('selected-ui')
     && !state.isMacOSClient
     && !window.matchMedia('(max-width: 1080px)').matches;
 }
@@ -685,7 +686,7 @@ function openSidebarOnMobile({ refresh = true, resetSearch = false } = {}) {
     dom.chatSearchInput?.select?.();
     return;
   }
-  if (state.isMacOSClient && !isMobileLayout()) {
+  if (state.isMacOSClient && !isMobileLayout() && !IS_SERVER_CHAT_ONLY) {
     sidebar?.classList.remove('hidden');
     setElementSuppressed(sidebar, false);
     if (refresh && state.token) loadChats({ showLoading: state.chats.length === 0, notifyError: true });
@@ -701,6 +702,9 @@ function openSidebarOnMobile({ refresh = true, resetSearch = false } = {}) {
   dom.sidebarBackdrop?.classList.add('open');
   dom.sidebarBackdrop?.classList.remove('hidden');
   document.body.classList.add('sidebar-open');
+  document.querySelectorAll('[aria-controls="sidebar"]').forEach(btn => btn.setAttribute('aria-expanded', 'true'));
+  setElementSuppressed(document.getElementById('main'), true);
+  setElementSuppressed(document.querySelector('.dialogue-rail'), true);
   if (refresh && state.token) loadChats({ showLoading: state.chats.length === 0, notifyError: true });
   focusFirstInteractive(sidebar);
 }
@@ -711,7 +715,7 @@ function closeSidebarOnMobile({ returnFocus = true } = {}) {
     syncResponsiveSidebarState();
     return;
   }
-  if (state.isMacOSClient && !isMobileLayout()) {
+  if (state.isMacOSClient && !isMobileLayout() && !IS_SERVER_CHAT_ONLY) {
     sidebar?.classList.remove('hidden', 'mobile-open', 'is-dragging-close');
     sidebar?.style.removeProperty('--sidebar-drag-offset');
     setElementSuppressed(sidebar, false);
@@ -724,6 +728,9 @@ function closeSidebarOnMobile({ returnFocus = true } = {}) {
   sidebar?.style.removeProperty('--sidebar-drag-offset');
   dom.sidebarBackdrop?.classList.remove('open');
   document.body.classList.remove('sidebar-open');
+  document.querySelectorAll('[aria-controls="sidebar"]').forEach(btn => btn.setAttribute('aria-expanded', 'false'));
+  setElementSuppressed(document.getElementById('main'), false);
+  setElementSuppressed(document.querySelector('.dialogue-rail'), false);
   window.setTimeout(() => {
     if (!dom.sidebarBackdrop?.classList.contains('open')) {
       dom.sidebarBackdrop?.classList.add('hidden');
@@ -1109,6 +1116,15 @@ function renderChatList() {
     const item = document.createElement('div');
     item.className = `chat-item${state.currentChat?.id === chat.id ? ' active' : ''}`;
     item.dataset.chatId = chat.id;
+    item.tabIndex = 0;
+    item.setAttribute('role', 'group');
+    item.setAttribute('aria-label', chat.title || '未命名会话');
+    item.addEventListener('keydown', (e) => {
+      if (e.target !== item || !['Enter', ' '].includes(e.key)) return;
+      e.preventDefault();
+      if (state.batchMode) toggleBatchSelect(chat.id);
+      else { openChat(chat); closeSidebarOnMobile(); }
+    });
 
     // Checkbox (visible in batch mode)
     const cb = document.createElement('span');
@@ -1464,7 +1480,7 @@ function renderContextStatusDetails(status) {
   return `
     <details class="message-extra-panel message-context-panel${emptyContext ? ' is-empty-context' : ''}">
       <summary>
-        <span>上下文</span>
+        <span>回答详情</span>
         <span class="message-extra-summary">${escapeHtml([memoryText, webText].join(' · '))}</span>
       </summary>
       <div class="message-context-grid">
@@ -1532,9 +1548,7 @@ function createMessageElement(msg) {
   wrap.dataset.messageId = msg.id;
   wrap.dataset.role = msg.role;
 
-  const avatar = msg.role === 'user'
-    ? (state.user?.username?.[0]?.toUpperCase() || 'U')
-    : 'AI';
+  const avatar = msg.role === 'user' ? '你' : 'AI';
 
   const secondaryActions = [];
   secondaryActions.push(`<button class="message-action message-action-mobile-only" type="button" data-action="copy">复制</button>`);
@@ -1760,7 +1774,7 @@ function updateSendButton() {
     dom.sendBtn.classList.toggle('hidden', state.streaming);
     dom.sendBtn.disabled = !canSend;
     if (!state.streaming) {
-      dom.sendBtn.innerHTML = '<span class="send-icon">↑</span>';
+      dom.sendBtn.innerHTML = '<span class="ui-icon icon-send" aria-hidden="true"></span>';
       dom.sendBtn.title = '发送消息';
     }
   }
@@ -2679,6 +2693,7 @@ function setSettingsMessage(text, kind = '') {
 
 function openSettings() {
   if (!dom.settingsModal) return;
+  dom.settingsModal._returnFocus = document.activeElement;
   if (dom.settingsUsername) dom.settingsUsername.value = state.user?.username || '';
   if (dom.settingsNewPassword) dom.settingsNewPassword.value = '';
   if (dom.settingsConfirmPassword) dom.settingsConfirmPassword.value = '';
@@ -2693,10 +2708,12 @@ function openSettings() {
 }
 
 function closeSettings() {
+  const wasOpen = dom.settingsModal && !dom.settingsModal.classList.contains('hidden');
   dom.settingsModal?.classList.add('hidden');
   dom.settingsBackdrop?.classList.add('hidden');
   setElementSuppressed(dom.settingsModal, true);
   setElementSuppressed(dom.settingsBackdrop, true);
+  if (wasOpen) restoreFocus(dom.settingsModal._returnFocus);
 }
 
 async function submitSettings(e) {
@@ -2785,6 +2802,20 @@ function initEvents() {
 
   dom.newChatBtn.addEventListener('click', newChat);
   dom.mobileNewChatBtn?.addEventListener('click', newChat);
+  document.getElementById('railNewChatBtn')?.addEventListener('click', newChat);
+  document.getElementById('railChatBtn')?.addEventListener('click', () => {
+    closeSidebarOnMobile({ returnFocus: false });
+    setActiveTab('chat');
+    dom.messageInput.focus();
+  });
+  for (const id of ['railHistoryBtn', 'titleHistoryBtn']) {
+    document.getElementById(id)?.addEventListener('click', () => openSidebarOnMobile());
+  }
+  document.getElementById('railSearchBtn')?.addEventListener('click', () => {
+    openSidebarOnMobile();
+    window.setTimeout(() => dom.chatSearchInput?.focus(), 40);
+  });
+  document.getElementById('closeHistoryBtn')?.addEventListener('click', () => closeSidebarOnMobile());
 
   // Settings modal
   dom.settingsBtn?.addEventListener('click', openSettings);
@@ -2842,11 +2873,14 @@ function initEvents() {
   const titleH1 = document.querySelector('.main-title-copy h1');
   const titleInput = dom.chatTitleInput;
   if (titleH1 && titleInput) {
+    titleH1.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); titleH1.click(); }
+    });
     titleH1.addEventListener('click', () => {
       if (state.activeTab !== 'chat') return;
       if (!state.currentChat) return;
       titleH1.style.display = 'none';
-      titleInput.style.display = '';
+      titleInput.style.display = 'block';
       titleInput.value = state.currentChat.title || '';
       titleInput.focus();
       titleInput.select();
@@ -2973,6 +3007,7 @@ function initEvents() {
   });
 
   dom.messageInput.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (state.streaming) return;
@@ -3059,6 +3094,22 @@ function initEvents() {
   window.addEventListener('resize', () => syncResponsiveSidebarState(), { passive: true });
 
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      const modal = state.activeDialog?.panel
+        || (!dom.settingsModal?.classList.contains('hidden') ? dom.settingsModal : null)
+        || (!dom.mobileMoreMenu?.classList.contains('hidden') ? dom.mobileMoreMenu : null)
+        || (sidebar?.classList.contains('mobile-open') ? sidebar : null);
+      if (modal) {
+        const controls = [...modal.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')]
+          .filter(el => !el.closest('[inert]') && el.getClientRects().length);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+          e.preventDefault(); last?.focus();
+        } else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+          e.preventDefault(); first?.focus();
+        }
+      }
+    }
     if (handleMacOSClientShortcut(e)) return;
     if (e.key === 'Escape') {
       closeMessageActionMenus();

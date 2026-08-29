@@ -5,6 +5,7 @@ const esbuild = require('esbuild');
 const csso = require('csso');
 const fs = require('fs');
 const path = require('path');
+const { createHash } = require('crypto');
 
 const root = path.join(__dirname, '..');
 const pub = path.join(root, 'public');
@@ -51,12 +52,21 @@ fs.writeFileSync(path.join(dist, 'style.min.css'), cssMin);
 const cssIn = Buffer.byteLength(cssRaw);
 const cssOut = Buffer.byteLength(cssMin);
 console.log(`CSS: ${(cssIn / 1024).toFixed(0)}KB → ${(cssOut / 1024).toFixed(0)}KB (${((1 - cssOut / cssIn) * 100).toFixed(0)}% smaller)`);
+const dialogueRaw = fs.readFileSync(path.join(pub, 'dialogue.css'), 'utf-8');
+fs.writeFileSync(path.join(dist, 'dialogue.min.css'), csso.minify(dialogueRaw, { restructure: false }).css);
+
+// Every build gets content-derived URLs so an old cached stylesheet cannot
+// be mixed with the new shell. Both raw and built entry points remain usable.
+const assetVersion = createHash('sha256')
+  .update(fs.readFileSync(path.join(dist, 'app.min.js')))
+  .update(cssRaw).update(dialogueRaw).digest('hex').slice(0, 12);
 
 // 3. Copy index.html with updated references
 let html = fs.readFileSync(path.join(pub, 'index.html'), 'utf-8');
-html = html.replace(/app\.js/g, 'dist/app.min.js');
+html = html.replace(/app\.js(\?[^"']*)?/g, `dist/app.min.js?v=${assetVersion}`);
 html = html.replace(/stilltype\.js/g, 'dist/stilltype.min.js');
-html = html.replace(/style\.css(\?[^"']*)?/g, 'dist/style.min.css');
+html = html.replace(/style\.css(\?[^"']*)?/g, `dist/style.min.css?v=${assetVersion}`);
+html = html.replace(/dialogue\.css(\?[^"']*)?/g, `dist/dialogue.min.css?v=${assetVersion}`);
 fs.writeFileSync(path.join(dist, 'index.html'), html);
 const htmlSize = fs.statSync(path.join(dist, 'index.html')).size;
 console.log(`HTML: dist/index.html (${(htmlSize / 1024).toFixed(0)}KB)`);

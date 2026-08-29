@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html id="dialogueApp" lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -10,11 +10,12 @@
   <link rel="icon" type="image/x-icon" href="favicon-dark.ico" media="(prefers-color-scheme: dark)">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="apple-touch-icon" href="apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="style.css?v=20260628">
+  <link rel="stylesheet" href="style.css?v=20260829">
+  <link rel="stylesheet" href="dialogue.css?v=20260829">
   <script src="vendor/marked.min.js"></script>
   <link rel="stylesheet" href="vendor/github-dark.min.css">
 </head>
-<body>
+<body class="selected-ui">
   <div class="bg-orbit bg-orbit-1"></div>
   <div class="bg-orbit bg-orbit-2"></div>
   <div class="bg-grid"></div>
@@ -87,16 +88,24 @@
   <!-- ========== Chat View ========== -->
   <div id="chatView" class="view hidden">
     <div class="shell">
-      <aside id="sidebar">
+      <nav class="dialogue-rail" aria-label="主导航">
+        <button id="railChatBtn" class="rail-button rail-brand" type="button" title="当前对话" aria-label="当前对话"><span class="ui-icon icon-chat" aria-hidden="true"></span></button>
+        <div class="rail-links">
+          <button id="railNewChatBtn" class="rail-button" type="button" title="新对话" aria-label="新对话"><span class="ui-icon icon-plus" aria-hidden="true"></span></button>
+          <button id="railHistoryBtn" class="rail-button" type="button" title="历史会话" aria-label="历史会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-history" aria-hidden="true"></span></button>
+          <button id="railSearchBtn" class="rail-button" type="button" title="搜索会话" aria-label="搜索会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-search" aria-hidden="true"></span></button>
+        </div>
+        <button id="settingsBtn" class="rail-button rail-settings" type="button" title="设置" aria-label="设置"><span class="ui-icon icon-settings" aria-hidden="true"></span></button>
+      </nav>
+      <aside id="sidebar" role="dialog" aria-modal="true" aria-label="历史会话">
         <div class="sidebar-top">
           <div class="sidebar-title-row">
             <div>
-              <div class="sidebar-kicker">workspace</div>
-              <h3>对话</h3>
+              <h3>历史会话</h3>
             </div>
             <div class="sidebar-actions">
-              <button id="settingsBtn" class="icon-btn" type="button" title="设置" aria-label="设置">⚙</button>
-              <button id="logoutBtn" class="icon-btn" title="退出登录">↗</button>
+              <button id="closeHistoryBtn" class="icon-btn" type="button" title="关闭历史会话" aria-label="关闭历史会话"><span class="ui-icon icon-close" aria-hidden="true"></span></button>
+              <button id="logoutBtn" class="icon-btn hidden" title="退出登录" tabindex="-1" hidden>↗</button>
             </div>
           </div>
           <button id="newChatBtn" class="btn btn-primary btn-full new-chat-btn" title="新建对话">
@@ -138,13 +147,13 @@
       <main id="main">
         <div class="main-frame">
           <header class="main-header">
+            <span class="dialogue-wordmark">AI Dialogue</span>
             <div class="main-title-block">
-              <button id="mobileMoreBtn" class="icon-btn mobile-only mobile-more-btn" type="button" title="菜单" aria-label="打开菜单" aria-controls="mobileMoreMenu" aria-expanded="false">⋯</button>
-              <button id="mobileSidebarBtn" class="icon-btn mobile-only" type="button" title="Chats">☰</button>
+              <button id="mobileSidebarBtn" class="icon-btn mobile-only" type="button" title="历史会话" aria-label="历史会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-chat" aria-hidden="true"></span></button>
               <div class="main-title-copy" id="mainTitleCopy">
-                <div class="main-kicker">conversation hub</div>
-                <h1>AI Dialogue</h1>
-                <input id="chatTitleInput" class="chat-title-edit" type="text" maxlength="80" placeholder="会话标题…">
+                <h1 role="button" tabindex="0" title="重命名会话">新对话</h1>
+                <input id="chatTitleInput" class="chat-title-edit" type="text" maxlength="80" placeholder="会话标题…" aria-label="会话标题" style="display:none">
+                <button id="titleHistoryBtn" class="icon-btn title-history" type="button" title="切换会话" aria-label="切换会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-chevron" aria-hidden="true"></span></button>
               </div>
             </div>
             <div class="header-actions">
@@ -155,7 +164,8 @@
               <select id="modelSelect" class="model-select" hidden aria-hidden="true" tabindex="-1">
                 <option value="">default</option>
               </select>
-              <button id="mobileNewChatBtn" class="icon-btn mobile-only" type="button" title="新建对话">＋</button>
+              <button id="mobileNewChatBtn" class="icon-btn mobile-only" type="button" title="新建对话" aria-label="新建对话"><span class="ui-icon icon-plus" aria-hidden="true"></span></button>
+              <button id="mobileMoreBtn" class="icon-btn mobile-only mobile-more-btn" type="button" title="菜单" aria-label="打开菜单" aria-controls="mobileMoreMenu" aria-expanded="false">⋯</button>
             </div>
           </header>
 
@@ -172,7 +182,7 @@
                 <p class="empty-memory-hint">直接在下方输入，开始对话。</p>
                 <div class="empty-models" id="emptyModels" hidden></div>
               </div>
-              <div id="messagesContainer" class="messages-container hidden"></div>
+              <div id="messagesContainer" class="messages-container hidden" role="region" aria-label="对话记录" tabindex="0"></div>
             </div>
 
             <div id="tabMemory" class="hidden memory-page">
@@ -351,7 +361,7 @@
 
           </section>
 
-          <button id="scrollToBottomBtn" class="scroll-bottom-btn hidden" type="button" title="回到最新">↓</button>
+          <button id="scrollToBottomBtn" class="scroll-bottom-btn hidden" type="button" title="回到最新" aria-label="回到最新">↓</button>
 
           <footer id="inputArea" class="input-area">
             <div class="input-topline">
@@ -383,13 +393,15 @@
                 id="messageInput"
                 class="message-input"
                 placeholder="输入消息…"
+                aria-label="输入消息"
+                title="Enter 发送，Shift+Enter 换行"
                 rows="1"
               ></textarea>
-              <button id="sendBtn" class="btn btn-primary btn-send" disabled>
-                <span class="send-icon">↑</span>
+              <button id="sendBtn" class="btn btn-primary btn-send" type="button" aria-label="发送消息" title="发送消息" disabled>
+                <span class="ui-icon icon-send" aria-hidden="true"></span>
               </button>
-              <button id="stopBtn" class="btn btn-stop btn-send hidden" type="button" title="中止回答">
-                <span>⏹</span>
+              <button id="stopBtn" class="btn btn-stop btn-send hidden" type="button" title="中止回答" aria-label="停止生成">
+                <span class="stop-square" aria-hidden="true"></span>
               </button>
             </div>
             <p class="input-hint">
@@ -501,12 +513,13 @@
       </form>
 
       <section class="settings-section">
+        <p class="settings-subtle">Enter 发送 · Shift+Enter 换行<br>AI 可能出错，重要信息请核对。</p>
         <button id="settingsLogoutBtn" class="btn btn-ghost btn-full" type="button">退出登录</button>
       </section>
     </div>
   </div>
 
   <script src="stilltype.js?v=20260628"></script>
-  <script src="app.js?v=20260628"></script>
+  <script src="app.js?v=20260829"></script>
 </body>
 </html>

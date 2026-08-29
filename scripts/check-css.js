@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const cssPath = path.join(__dirname, '..', 'public', 'style.css');
+for (const name of ['style.css', 'dialogue.css']) {
+const cssPath = path.join(__dirname, '..', 'public', name);
 const css = fs.readFileSync(cssPath, 'utf8');
 let balance = 0;
 let line = 1;
@@ -56,4 +57,5 @@ if (inComment) throw new Error('CSS has an unclosed comment');
 if (inString) throw new Error('CSS has an unclosed string');
 if (balance !== 0) throw new Error(`CSS brace balance is ${balance}, expected 0`);
 
-console.log('css ok');
+console.log(`${name} ok`);
+}
