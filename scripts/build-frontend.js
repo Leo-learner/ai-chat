@@ -15,7 +15,7 @@ fs.rmSync(distDir, { recursive: true, force: true });
 fs.mkdirSync(distDir, { recursive: true });
 
 esbuild.buildSync({
-  entryPoints: [path.join(publicDir, 'app.js')],
+  entryPoints: [path.join(publicDir, 'app.mjs')],
   bundle: true,
   minify: true,
   target: 'es2020',
@@ -35,7 +35,7 @@ const assetVersion = createHash('sha256')
 
 const htmlSource = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const html = htmlSource
-  .replace(/app\.js(\?[^"']*)?/g, `app.min.js?v=${assetVersion}`)
+  .replace(/app\.mjs(\?[^"']*)?/g, `app.min.js?v=${assetVersion}`)
   .replace(/style\.css(\?[^"']*)?/g, `style.min.css?v=${assetVersion}`);
 fs.writeFileSync(path.join(distDir, 'index.html'), html);
 
@@ -46,7 +46,12 @@ for (const name of fs.readdirSync(publicDir)) {
 }
 fs.cpSync(path.join(publicDir, 'vendor'), path.join(distDir, 'vendor'), { recursive: true });
 
-const sourceBytes = fs.statSync(path.join(publicDir, 'app.js')).size + Buffer.byteLength(cssSource) + Buffer.byteLength(htmlSource);
+const moduleDir = path.join(publicDir, 'modules');
+const jsSourceBytes = fs.statSync(path.join(publicDir, 'app.mjs')).size
+  + fs.readdirSync(moduleDir)
+    .filter(name => name.endsWith('.mjs'))
+    .reduce((total, name) => total + fs.statSync(path.join(moduleDir, name)).size, 0);
+const sourceBytes = jsSourceBytes + Buffer.byteLength(cssSource) + Buffer.byteLength(htmlSource);
 const builtBytes = fs.statSync(path.join(distDir, 'app.min.js')).size + Buffer.byteLength(cssMinified) + Buffer.byteLength(html);
 console.log(`Frontend: ${(sourceBytes / 1024).toFixed(0)}KB source -> ${(builtBytes / 1024).toFixed(0)}KB built`);
 console.log(`Build done in ${Date.now() - startedAt}ms (${assetVersion})`);

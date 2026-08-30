@@ -252,7 +252,7 @@ button:disabled { cursor: not-allowed; }
   .auth-card { padding: 24px 20px; }
   .settings-modal { inset: auto 0 0; width: 100%; max-height: 88dvh; transform: none; border-width: 1px 0 0; }
 }
-/* Production chat layout. Chat, account, provider, and persistence logic remain in app.js/server.js. */
+/* Production chat layout. UI domains are composed from app.mjs and modules/. */
 html:root {
   --dialogue-bg: #23292d;
   --dialogue-ai: #30383d;
