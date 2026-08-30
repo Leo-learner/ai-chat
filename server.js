@@ -26,6 +26,20 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const APP_MODE = process.env.APP_MODE || '';
 const IS_SERVER_CHAT_ONLY = APP_MODE === 'server-chat-only';
 const rootLogger = createRootLogger();
+const MAX_MESSAGE_CHARS = Number(process.env.MAX_MESSAGE_CHARS || 32000);
+const MAX_SYSTEM_PROMPT_CHARS = Number(process.env.MAX_SYSTEM_PROMPT_CHARS || 16000);
+const MAX_CHAT_TITLE_CHARS = Number(process.env.MAX_CHAT_TITLE_CHARS || 80);
+
+function isBoundedString(value, maxChars, { allowEmpty = false } = {}) {
+  if (typeof value !== 'string' || value.length > maxChars) return false;
+  return allowEmpty || value.trim().length > 0;
+}
+
+function isBcryptPassword(value) {
+  return typeof value === 'string'
+    && value.length >= 6
+    && Buffer.byteLength(value, 'utf8') <= 72;
+}
 
 // ── Middleware ──────────────────────────────────────────
 function assertRuntimeConfig() {
@@ -52,6 +66,10 @@ function allowedOrigins() {
 }
 
 const corsAllowList = allowedOrigins();
+// Production traffic is forwarded by a loopback reverse proxy. Trusting only
+// loopback keeps req.ip accurate for rate limiting without accepting arbitrary
+// client supplied X-Forwarded-For values.
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 app.use(cors({
   origin(origin, cb) {
     if (!origin || corsAllowList.has(origin)) return cb(null, true);
@@ -63,6 +81,21 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('Origin-Agent-Cluster', '?1');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "base-uri 'none'",
+    "object-src 'none'",
+    "frame-ancestors 'self'",
+    "form-action 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+  ].join('; '));
   next();
 });
 // Request ID — attach a UUID to every request for log correlation
@@ -72,7 +105,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Request-ID', req.id);
   next();
 });
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || (IS_PRODUCTION ? '256kb' : '1mb') }));
 // Serve built assets first (dist/), fall back to raw public/. Set SERVE_DIST=0 for dev.
 const rawPublicPath = path.join(__dirname, 'public');
 const distPath = path.join(rawPublicPath, 'dist');
@@ -112,6 +145,8 @@ const CONTEXT_CONFIG = {
 };
 
 const MEMORY_CONFIG = {
+  retrievalEnabled: process.env.MEMORY_RETRIEVAL_ENABLED === 'true'
+    || (process.env.MEMORY_RETRIEVAL_ENABLED !== 'false' && !IS_SERVER_CHAT_ONLY),
   embeddingBaseUrl: (process.env.EMBEDDING_BASE_URL || 'http://127.0.0.1:11434').replace(/\/+$/, ''),
   embeddingModel: process.env.EMBEDDING_MODEL || 'nomic-embed-text:latest',
   embeddingDim: Number(process.env.EMBEDDING_DIM || 0),
@@ -119,7 +154,7 @@ const MEMORY_CONFIG = {
   maxTopK: Number(process.env.MEMORY_MAX_TOP_K || 10),
   minScore: Number(process.env.MEMORY_MIN_SCORE || 0.18),
   maxContextChars: Number(process.env.MEMORY_MAX_CONTEXT_CHARS || 1800),
-  timeoutMs: Number(process.env.EMBEDDING_TIMEOUT_MS || 3000),
+  timeoutMs: Number(process.env.EMBEDDING_TIMEOUT_MS || 1500),
   candidateLimit: Number(process.env.MEMORY_CANDIDATE_LIMIT || 200),
   maxContentChars: Number(process.env.MEMORY_MAX_CONTENT_CHARS || 8000),
 };
@@ -301,14 +336,16 @@ function normalizeEmbeddingPayload(payload) {
   return { vector, model, dim };
 }
 
-async function embedText(text) {
+async function embedText(text, parentSignal) {
   const content = String(text || '').trim();
   if (!content) throw new Error('Text is required for embedding');
   const res = await fetch(`${MEMORY_CONFIG.embeddingBaseUrl}/api/embed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: MEMORY_CONFIG.embeddingModel, input: content }),
-    signal: createTimeoutSignal(MEMORY_CONFIG.timeoutMs),
+    signal: parentSignal
+      ? createLinkedTimeoutSignal(parentSignal, MEMORY_CONFIG.timeoutMs, 'Embedding request timed out')
+      : createTimeoutSignal(MEMORY_CONFIG.timeoutMs),
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
@@ -385,9 +422,9 @@ function rankMemoryRows(rows, queryVector, topK, minScore = MEMORY_CONFIG.minSco
   return ranked.sort((a, b) => b.score - a.score).slice(0, topK);
 }
 
-async function searchUserMemories(userId, query, topK = MEMORY_CONFIG.topK) {
+async function searchUserMemories(userId, query, topK = MEMORY_CONFIG.topK, signal) {
   const k = clampInt(topK, MEMORY_CONFIG.topK, 1, MEMORY_CONFIG.maxTopK);
-  const { vector } = await embedText(query);
+  const { vector } = await embedText(query, signal);
   const rows = memoryQueries.enabledForSearch.all(userId, Math.max(MEMORY_CONFIG.candidateLimit, k));
   return vectorIndex.rankRows(rows, vector, k, MEMORY_CONFIG.minScore);
 }
@@ -426,11 +463,14 @@ function formatMemoryContext(memories = []) {
   return lines.length > 1 ? lines.join('\n') : '';
 }
 
-async function buildUserMemoryContext(userId, prompt, history = []) {
+async function buildUserMemoryContext(userId, prompt, history = [], signal) {
+  if (!MEMORY_CONFIG.retrievalEnabled) {
+    return { context: '', count: 0, queryChars: 0, disabled: true };
+  }
   try {
     const query = buildMemorySearchQuery(prompt, history);
     if (!query) return { context: '', count: 0, queryChars: 0 };
-    const memories = await searchUserMemories(userId, query, MEMORY_CONFIG.topK);
+    const memories = await searchUserMemories(userId, query, MEMORY_CONFIG.topK, signal);
     return {
       context: formatMemoryContext(memories),
       count: memories.length,
@@ -548,16 +588,21 @@ async function buildWebSearchContext(prompt, history = [], signal) {
 // POST /api/auth/register
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    const password = req.body?.password;
 
     if (!username || !email || !password) {
       return res.status(400).json({ error: 'All fields are required' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!isBcryptPassword(password)) {
+      return res.status(400).json({ error: 'Password must be 6-72 UTF-8 bytes' });
     }
     if (username.length < 2 || username.length > 30) {
       return res.status(400).json({ error: 'Username must be 2-30 characters' });
+    }
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Enter a valid email address' });
     }
 
     const existingUser = userQueries.findByUsername.get(username);
@@ -587,9 +632,10 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
 // POST /api/auth/login
 app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
-    const { login, password } = req.body;
+    const login = typeof req.body?.login === 'string' ? req.body.login.trim() : '';
+    const password = req.body?.password;
 
-    if (!login || !password) {
+    if (!login || login.length > 254 || typeof password !== 'string' || password.length > 256) {
       return res.status(400).json({ error: 'Username/email and password are required' });
     }
 
@@ -659,8 +705,8 @@ app.patch('/api/auth/profile', authRequired, authLimiter, async (req, res) => {
     }
 
     if (wantsPassword) {
-      if (newPassword.length < 6) {
-        return res.status(400).json({ error: '新密码至少 6 位字符' });
+      if (!isBcryptPassword(newPassword)) {
+        return res.status(400).json({ error: '新密码需为 6-72 个 UTF-8 字节' });
       }
       const hashed = await bcrypt.hash(newPassword, 12);
       userQueries.updatePassword.run(hashed, account.id);
@@ -693,6 +739,13 @@ app.get('/api/models', authRequired, (req, res) => {
 });
 
 // ── Memory Routes ────────────────────────────────────────
+
+app.use('/api/memories', (req, res, next) => {
+  if (IS_SERVER_CHAT_ONLY) {
+    return res.status(403).json({ error: 'Memory features are disabled in server chat mode' });
+  }
+  return next();
+});
 
 app.get('/api/memories/health', authRequired, async (req, res) => {
   res.json(await checkEmbeddingHealth());
@@ -838,11 +891,17 @@ app.get('/api/chats', authRequired, (req, res) => {
 // POST /api/chats
 app.post('/api/chats', authRequired, (req, res) => {
   try {
-    const { title, model, system_prompt } = req.body;
+    const { title, model, system_prompt } = req.body || {};
+    if (title !== undefined && !isBoundedString(title, MAX_CHAT_TITLE_CHARS)) {
+      return res.status(400).json({ error: `Chat title must be 1-${MAX_CHAT_TITLE_CHARS} characters` });
+    }
+    if (system_prompt !== undefined && !isBoundedString(system_prompt, MAX_SYSTEM_PROMPT_CHARS, { allowEmpty: true })) {
+      return res.status(400).json({ error: `System prompt exceeds ${MAX_SYSTEM_PROMPT_CHARS} characters` });
+    }
     const chatModel = normalizeChatModel(model);
 
     const id = uuid();
-    const chatTitle = title || 'New Chat';
+    const chatTitle = title?.trim() || 'New Chat';
 
     chatQueries.create.run(id, req.user.id, chatTitle, chatModel);
     if (system_prompt) {
@@ -873,8 +932,14 @@ app.patch('/api/chats/:id', authRequired, (req, res) => {
     return res.status(404).json({ error: 'Chat not found' });
   }
 
-  const { title, model, system_prompt } = req.body;
-  if (title) chatQueries.updateTitle.run(title, req.params.id);
+  const { title, model, system_prompt } = req.body || {};
+  if (title !== undefined && !isBoundedString(title, MAX_CHAT_TITLE_CHARS)) {
+    return res.status(400).json({ error: `Chat title must be 1-${MAX_CHAT_TITLE_CHARS} characters` });
+  }
+  if (system_prompt !== undefined && !isBoundedString(system_prompt, MAX_SYSTEM_PROMPT_CHARS, { allowEmpty: true })) {
+    return res.status(400).json({ error: `System prompt exceeds ${MAX_SYSTEM_PROMPT_CHARS} characters` });
+  }
+  if (title !== undefined) chatQueries.updateTitle.run(title.trim(), req.params.id);
   if (model !== undefined) chatQueries.updateModel.run(normalizeChatModel(model), req.params.id);
   if (system_prompt !== undefined) chatQueries.updateSystem.run(system_prompt, req.params.id);
 
@@ -910,16 +975,20 @@ app.get('/api/chats/:id/messages', authRequired, (req, res) => {
 
 // POST /api/chats/:id/messages — send + stream response
 app.post('/api/chats/:id/messages', authRequired, chatLimiter, async (req, res) => {
+  const requestStartedAt = Date.now();
   const chat = chatQueries.findById.get(req.params.id);
   if (!chat || chat.user_id !== req.user.id) {
     return res.status(404).json({ error: 'Chat not found' });
   }
 
-  const { content, model, regenerateFromMessageId, replaceMessageId, webSearch } = req.body;
+  const { content, model, regenerateFromMessageId, replaceMessageId, webSearch } = req.body || {};
   const regenerate = Boolean(regenerateFromMessageId);
   const webSearchRequested = webSearch === true;
 
-  if (!regenerate && !content) {
+  if (!regenerate && !isBoundedString(content, MAX_MESSAGE_CHARS)) {
+    if (typeof content === 'string' && content.length > MAX_MESSAGE_CHARS) {
+      return res.status(400).json({ error: `Message exceeds ${MAX_MESSAGE_CHARS} characters` });
+    }
     return res.status(400).json({ error: 'Message content is required' });
   }
   if (regenerate && !regenerateFromMessageId) {
@@ -967,7 +1036,24 @@ app.post('/api/chats/:id/messages', authRequired, chatLimiter, async (req, res) 
     chatQueries.updateTitle.run(title, chat.id);
   }
 
-  const memoryContextInfo = await buildUserMemoryContext(req.user.id, promptContent, contextHistory);
+  const abortController = new AbortController();
+  const abortConnection = () => {
+    if (!abortController.signal.aborted) abortController.abort();
+  };
+  req.on('aborted', abortConnection);
+  res.on('close', abortConnection);
+
+  const memoryContextInfo = await buildUserMemoryContext(
+    req.user.id,
+    promptContent,
+    contextHistory,
+    abortController.signal,
+  );
+  if (abortController.signal.aborted) {
+    req.off?.('aborted', abortConnection);
+    res.off?.('close', abortConnection);
+    return;
+  }
   const memoryContext = memoryContextInfo.context;
 
   const contextPlans = [
@@ -997,16 +1083,15 @@ app.post('/api/chats/:id/messages', authRequired, chatLimiter, async (req, res) 
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
-
-  const abortController = new AbortController();
-  const abortConnection = () => {
-    if (!abortController.signal.aborted) abortController.abort();
-  };
-  res.on('close', abortConnection);
+  res.flushHeaders?.();
+  // Send an SSE comment immediately so reverse proxies and clients observe the
+  // connection before optional search or provider queueing begins.
+  res.write(': connected\n\n');
 
   let fullContent = '';
   let totalTokens = 0;
   let assistantMsgId = uuid();
+  let firstChunkLogged = false;
   let webSearchContextInfo = { context: '', count: 0, queryChars: 0, used: false, results: [] };
 
   const persistAssistant = db.transaction((chatId, replaceId, msgId, contentText, tokens) => {
@@ -1108,6 +1193,10 @@ app.post('/api/chats/:id/messages', authRequired, chatLimiter, async (req, res) 
           if (abortController.signal.aborted) break;
 
           if (chunk.type === 'content') {
+            if (!firstChunkLogged) {
+              firstChunkLogged = true;
+              req.log.info(`First response chunk chat=${chat.id} latencyMs=${Date.now() - requestStartedAt}`);
+            }
             fullContent += chunk.content;
             res.write(`data: ${JSON.stringify({ type: 'content', content: chunk.content })}\n\n`);
           } else if (chunk.type === 'finish') {
@@ -1160,11 +1249,11 @@ app.post('/api/chats/:id/messages', authRequired, chatLimiter, async (req, res) 
       res.status(500);
     }
     if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'AI 服务暂时不可用，请稍后重试' })}\n\n`);
       res.end();
     }
   } finally {
-    req.off?.('close', abortConnection);
+    req.off?.('aborted', abortConnection);
     res.off?.('close', abortConnection);
   }
 });

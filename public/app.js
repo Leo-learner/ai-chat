@@ -966,10 +966,117 @@ function setMessageBubbleStreaming(messageEl, statusText = '生成中…') {
   return body.querySelector('.message-content');
 }
 
+const MARKDOWN_ALLOWED_TAGS = new Set([
+  'a', 'blockquote', 'br', 'code', 'del', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'hr', 'img', 'input', 'li', 'ol', 'p', 'pre', 'strong', 'table', 'tbody', 'td',
+  'th', 'thead', 'tr', 'ul',
+]);
+const MARKDOWN_DROP_CONTENT_TAGS = new Set([
+  'audio', 'button', 'embed', 'form', 'iframe', 'link', 'math', 'meta', 'object',
+  'option', 'script', 'select', 'source', 'style', 'svg', 'template', 'textarea', 'video',
+]);
+const MARKDOWN_ALLOWED_ATTRS = {
+  a: new Set(['href', 'title']),
+  code: new Set(['class']),
+  img: new Set(['alt', 'src', 'title']),
+  input: new Set(['checked', 'disabled', 'type']),
+  ol: new Set(['start']),
+  td: new Set(['align']),
+  th: new Set(['align']),
+};
+
+function sanitizeMarkdownUrl(value, kind = 'link') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (kind === 'image' && /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(raw)) {
+    return raw;
+  }
+  try {
+    const parsed = new URL(raw, window.location.origin);
+    if (kind === 'image') {
+      if (parsed.protocol === 'https:') return parsed.href;
+      if (parsed.origin === window.location.origin && raw.startsWith('/') && !raw.startsWith('//')) return parsed.href;
+      return '';
+    }
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'mailto:') {
+      return parsed.href;
+    }
+  } catch {
+    /* Invalid URLs are stripped below. */
+  }
+  return '';
+}
+
+function sanitizeMarkdownElement(element) {
+  for (const child of Array.from(element.childNodes)) {
+    if (child.nodeType === Node.COMMENT_NODE) {
+      child.remove();
+      continue;
+    }
+    if (child.nodeType !== Node.ELEMENT_NODE) continue;
+
+    const tag = child.tagName.toLowerCase();
+    if (MARKDOWN_DROP_CONTENT_TAGS.has(tag)) {
+      child.remove();
+      continue;
+    }
+
+    sanitizeMarkdownElement(child);
+    if (!MARKDOWN_ALLOWED_TAGS.has(tag)) {
+      child.replaceWith(...Array.from(child.childNodes));
+      continue;
+    }
+
+    const allowedAttrs = MARKDOWN_ALLOWED_ATTRS[tag] || new Set();
+    for (const attr of Array.from(child.attributes)) {
+      if (!allowedAttrs.has(attr.name.toLowerCase())) child.removeAttribute(attr.name);
+    }
+
+    if (tag === 'a') {
+      const href = sanitizeMarkdownUrl(child.getAttribute('href'), 'link');
+      if (href) {
+        child.setAttribute('href', href);
+        child.setAttribute('target', '_blank');
+        child.setAttribute('rel', 'noopener noreferrer nofollow');
+      } else {
+        child.removeAttribute('href');
+      }
+    } else if (tag === 'img') {
+      const src = sanitizeMarkdownUrl(child.getAttribute('src'), 'image');
+      if (!src) {
+        child.replaceWith(document.createTextNode(child.getAttribute('alt') || ''));
+        continue;
+      }
+      child.setAttribute('src', src);
+      child.setAttribute('loading', 'lazy');
+      child.setAttribute('referrerpolicy', 'no-referrer');
+    } else if (tag === 'code' && child.hasAttribute('class')) {
+      const classes = String(child.getAttribute('class') || '')
+        .split(/\s+/)
+        .filter(name => /^language-[a-z0-9_+-]{1,32}$/i.test(name));
+      if (classes.length) child.setAttribute('class', classes.join(' '));
+      else child.removeAttribute('class');
+    } else if (tag === 'input') {
+      if (child.getAttribute('type') !== 'checkbox') {
+        child.remove();
+        continue;
+      }
+      child.setAttribute('disabled', '');
+    }
+  }
+}
+
+function sanitizeMarkdownHtml(html) {
+  const template = document.createElement('template');
+  template.innerHTML = String(html || '');
+  sanitizeMarkdownElement(template.content);
+  return template.innerHTML;
+}
+
 function renderMarkdown(text) {
   if (!text) return '';
   try {
-    return marked.parse(text);
+    return sanitizeMarkdownHtml(marked.parse(text));
   } catch {
     return escapeHtml(text);
   }

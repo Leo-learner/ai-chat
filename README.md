@@ -58,6 +58,7 @@ npm run build
 npm run smoke:startup
 npm run smoke:auth
 npm run smoke:provider
+npm run smoke:security-latency
 ```
 
 ## Configuration
@@ -89,7 +90,7 @@ MIT
 | 功能 | 本地版 (main) | 服务器版 (server/aichatupdated-20260628) |
 |------|:---:|:---:|
 | AI 对话 | ✅ | ✅ |
-| 记忆库 | ✅ | ❌ (预留 API，未来迁移云端 embedding) |
+| 记忆库 | ✅ | ❌ (接口与自动检索均关闭) |
 | 打字练习 | ✅ | ❌ |
 | Mac 远程控制 | ✅ | ❌ |
 | 远程终端 | ✅ | ❌ |
@@ -109,6 +110,9 @@ DEFAULT_CHAT_MODEL=openrouter/free
 PORT=3200
 NODE_ENV=production
 HOST=127.0.0.1
+JSON_BODY_LIMIT=256kb
+TRUST_PROXY=loopback
+MEMORY_RETRIEVAL_ENABLED=false
 
 # 数据路径
 DB_PATH=/opt/apps/ai-chat/data/chat.db
@@ -117,6 +121,8 @@ DB_PATH=/opt/apps/ai-chat/data/chat.db
 > ⚠️ 不要将 `.env` 文件提交到 Git。API Key 只在服务端环境变量中配置。
 
 ### 服务器部署 (systemd + Nginx)
+
+发布顺序固定为：先在本地完成修改与全部验证，再把确切提交推送到 GitHub，最后只在服务器部署这个已推送提交。禁止直接修改生产代码或部署尚未推送的本地内容。
 
 ```bash
 # 1. 克隆仓库
@@ -174,7 +180,7 @@ sudo tee /etc/nginx/sites-available/aichat.dkz12345.com << 'NGX'
 server {
     listen 80;
     server_name aichat.dkz12345.com;
-    client_max_body_size 50M;
+    client_max_body_size 512k;
     location / {
         proxy_pass http://127.0.0.1:3200;
         proxy_http_version 1.1;

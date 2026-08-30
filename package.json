@@ -12,21 +12,22 @@
     "prestart": "npm run build",
     "start": "bash scripts/run-node-abi127.sh server.js",
     "dev": "SERVE_DIST=0 bash scripts/run-node-abi127.sh --watch server.js",
-    "check": "bash scripts/run-node-abi127.sh --check server.js && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check public/app.js && bash scripts/run-node-abi127.sh --check scripts/smoke-auth.js && bash scripts/run-node-abi127.sh --check scripts/smoke-provider-routing.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh scripts/check-css.js && bash scripts/run-node-abi127.sh scripts/check-production-frontend.js",
+    "check": "bash scripts/run-node-abi127.sh --check server.js && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check public/app.js && bash scripts/run-node-abi127.sh --check scripts/smoke-auth.js && bash scripts/run-node-abi127.sh --check scripts/smoke-provider-routing.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh --check scripts/smoke-security-latency.js && bash scripts/run-node-abi127.sh scripts/check-css.js && bash scripts/run-node-abi127.sh scripts/check-production-frontend.js",
     "smoke:startup": "bash scripts/run-node-abi127.sh scripts/smoke-startup.js",
     "smoke:auth": "bash scripts/run-node-abi127.sh scripts/smoke-auth.js",
-    "smoke:provider": "bash scripts/run-node-abi127.sh scripts/smoke-provider-routing.js"
+    "smoke:provider": "bash scripts/run-node-abi127.sh scripts/smoke-provider-routing.js",
+    "smoke:security-latency": "bash scripts/run-node-abi127.sh scripts/smoke-security-latency.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.21.0",
+    "express": "4.22.2",
     "gpt-tokenizer": "^3.4.0",
     "iconv-lite": "^0.7.2",
     "jsonwebtoken": "^9.0.2",
-    "uuid": "^10.0.0"
+    "uuid": "11.1.1"
   },
   "devDependencies": {
     "csso": "^5.0.5",
