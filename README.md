@@ -1,16 +1,19 @@
 # AI Chat
 
-A self-hosted AI chat web app with streaming responses, Markdown and code rendering, chat history, local memory retrieval, optional web search, and admin-only desktop control and file management tools.
+> [!IMPORTANT]
+> **服务器专用版本：`server/aichatupdated-20260628`**
+> 此分支仅用于 Azure 上的 `aichat.dkz12345.com` 生产服务。桌面本地版本请继续使用 `main`；部署时必须保留服务器现有的 `.env`、`providers.json` 和 `data/`。
+
+A self-hosted AI chat web app with streaming responses, Markdown and code rendering, persistent chat history, optional web search, and a responsive production UI. This branch contains no Mac control, Finder, terminal, ngrok, or local embedding runtime.
 
 ## Features
 
 - AI chat with SSE streaming, stop generation, continue generation, regenerate, message copy, and code-block copy.
 - Conversation history with create, switch, rename, and delete support.
-- Local memory library powered by Ollama embeddings, so memory retrieval can stay on your machine.
-- Context management with token-budget trimming, older-message summarization, and relevant memory injection.
+- Context management with token-budget trimming and older-message summarization.
 - Optional web search through Tavily, disabled by default.
-- Admin-only tools for remote control, terminal access, and Finder-style file management.
-- Responsive UI modes for desktop browsers, mobile browsers, Android WebView, and a macOS WebView client.
+- Light, dark, and system themes plus account settings.
+- Responsive UI for desktop and mobile browsers.
 
 ## Tech Stack
 
@@ -18,7 +21,6 @@ A self-hosted AI chat web app with streaming responses, Markdown and code render
 - SQLite + better-sqlite3
 - Plain HTML/CSS/JavaScript
 - OpenAI-compatible chat providers
-- Ollama for local embeddings
 
 ## Quick Start
 
@@ -51,9 +53,11 @@ npm run dev
 
 ```bash
 npm run check
+npm test
 npm run build
 npm run smoke:startup
-npm run smoke:auth
+npm run smoke:provider
+npm run smoke:security-latency
 ```
 
 ## Configuration
@@ -62,12 +66,12 @@ npm run smoke:auth
 - Use `.env.example` for public, non-secret configuration examples.
 - Chat model providers are configured in `providers.json`.
 - API keys should be referenced through environment-variable placeholders.
-- Local memory embeddings use Ollama by default with `nomic-embed-text:latest`.
+- This production branch has a fixed `server-chat-only` mode; no mode flag is required.
 
 ## Security Notes
 
 - `data/`, logs, databases, backup files, build artifacts, and local secret files are ignored by Git.
-- Control, terminal, and Finder routes must be protected by backend admin checks. Frontend hiding is not a security boundary.
+- Legacy control and Finder endpoints return a fixed 403 response; their implementations are not shipped.
 - Use a strong `JWT_SECRET` in production. Do not use development defaults.
 
 ## License
@@ -78,14 +82,14 @@ MIT
 
 ## 服务器部署 (Server Chat-Only)
 
-`deploy/server-chat-only` 分支是专为服务器部署制作的精简版本：只保留 AI 聊天功能，禁用本地 Mac 控制、终端、文件管理等。
+`server/aichatupdated-20260628` 分支是专为服务器部署制作的精简版本：只保留 AI 聊天功能。本地 Mac 控制、终端、文件管理、ngrok 运维和本地记忆实现已从此分支移除，而非仅通过环境变量隐藏。
 
 ### 功能差异
 
-| 功能 | 本地版 (main) | 服务器版 (deploy/server-chat-only) |
+| 功能 | 本地版 (main) | 服务器版 (server/aichatupdated-20260628) |
 |------|:---:|:---:|
 | AI 对话 | ✅ | ✅ |
-| 记忆库 | ✅ | ❌ (预留 API，未来迁移云端 embedding) |
+| 记忆库 | ✅ | ❌ (接口与自动检索均关闭) |
 | 打字练习 | ✅ | ❌ |
 | Mac 远程控制 | ✅ | ❌ |
 | 远程终端 | ✅ | ❌ |
@@ -95,16 +99,17 @@ MIT
 
 ```bash
 # 必需
-APP_MODE=server-chat-only
 JWT_SECRET=<your-strong-random-string>
-NVIDIA_API_KEY=<your-nvidia-api-key>
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=moonshotai/kimi-k2.6
+OPENROUTER_API_KEY=<your-openrouter-api-key>
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEFAULT_CHAT_MODEL=openrouter/free
 
 # 可选
 PORT=3200
 NODE_ENV=production
 HOST=127.0.0.1
+JSON_BODY_LIMIT=256kb
+TRUST_PROXY=loopback
 
 # 数据路径
 DB_PATH=/opt/apps/ai-chat/data/chat.db
@@ -114,13 +119,15 @@ DB_PATH=/opt/apps/ai-chat/data/chat.db
 
 ### 服务器部署 (systemd + Nginx)
 
+发布顺序固定为：先在本地完成修改与全部验证，再把确切提交推送到 GitHub，最后只在服务器部署这个已推送提交。禁止直接修改生产代码或部署尚未推送的本地内容。
+
 ```bash
 # 1. 克隆仓库
 sudo mkdir -p /opt/apps
 sudo chown -R $USER:$USER /opt/apps
 git clone https://github.com/Leo-learner/ai-chat.git /opt/apps/ai-chat
 cd /opt/apps/ai-chat
-git checkout deploy/server-chat-only
+git checkout server/aichatupdated-20260628
 
 # 2. 安装依赖
 npm install
@@ -128,16 +135,21 @@ npm run build
 
 # 3. 创建 .env
 cat > .env << 'EOF'
-APP_MODE=server-chat-only
 NODE_ENV=production
 HOST=127.0.0.1
 PORT=3200
 JWT_SECRET=<random-string>
-NVIDIA_API_KEY=<your-key>
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=moonshotai/kimi-k2.6
-ADMIN_USERNAME=<your-username>
+OPENROUTER_API_KEY=<your-key>
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEFAULT_CHAT_MODEL=openrouter/free
 DB_PATH=/opt/apps/ai-chat/data/chat.db
+JSON_BODY_LIMIT=256kb
+MAX_MESSAGE_CHARS=32000
+MAX_SYSTEM_PROMPT_CHARS=16000
+MAX_CHAT_TITLE_CHARS=80
+MODEL_FIRST_BYTE_TIMEOUT_MS=30000
+MODEL_STREAM_IDLE_TIMEOUT_MS=45000
+MODEL_TOTAL_TIMEOUT_MS=300000
 EOF
 chmod 600 .env
 
@@ -165,30 +177,18 @@ sudo systemctl daemon-reload
 sudo systemctl enable ai-chat
 sudo systemctl start ai-chat
 
-# 5. Nginx 反向代理 (chat.dkz12345.com)
-sudo tee /etc/nginx/sites-available/chat.dkz12345.com << 'NGX'
-server {
-    listen 80;
-    server_name chat.dkz12345.com;
-    client_max_body_size 50M;
-    location / {
-        proxy_pass http://127.0.0.1:3200;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-NGX
+# 5. 首次安装先使用 HTTP bootstrap 配置
+sudo cp deploy/nginx/aichat.dkz12345.com.bootstrap.conf /etc/nginx/sites-available/aichat.dkz12345.com
 
-sudo ln -sf /etc/nginx/sites-available/chat.dkz12345.com /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/aichat.dkz12345.com /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 # 6. HTTPS
-sudo certbot --nginx -d chat.dkz12345.com
+sudo certbot --nginx -d aichat.dkz12345.com
+
+# 7. 证书签发后切换到仓库内的最终 HTTPS 配置
+sudo cp deploy/nginx/aichat.dkz12345.com.conf /etc/nginx/sites-available/aichat.dkz12345.com
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ### 数据迁移
@@ -215,3 +215,5 @@ sudo systemctl restart ai-chat
 - `.env` 文件权限必须为 `600`
 - API Key 不通过前端传输，所有模型调用走后端代理
 - systemd 服务启用 `NoNewPrivileges=true`、`PrivateTmp=true`
+- CSP、frame 限制等响应安全头由应用统一发送，Nginx 不重复添加
+- 生产环境必须先运行 `npm run build`，且不得设置 `SERVE_DIST=0`

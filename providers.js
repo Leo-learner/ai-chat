@@ -12,7 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_CHAT_MODEL = process.env.DEFAULT_CHAT_MODEL || 'moonshotai/kimi-k2.6';
+const DEFAULT_CHAT_MODEL = process.env.DEFAULT_CHAT_MODEL || 'openrouter/free';
 
 function resolveEnvPlaceholders(value) {
   if (typeof value === 'string') {

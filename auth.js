@@ -28,11 +28,4 @@ function authRequired(req, res, next) {
   }
 }
 
-function adminOnly(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-}
-
-module.exports = { signToken, verifyToken, authRequired, adminOnly };
+module.exports = { signToken, verifyToken, authRequired };

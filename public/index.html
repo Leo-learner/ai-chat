@@ -1,27 +1,21 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html id="dialogueApp" lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="dark light">
-  <meta name="app-mode" content="server-chat-only">
   <title>AI Dialogue</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/x-icon" href="favicon-dark.ico" media="(prefers-color-scheme: dark)">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="apple-touch-icon" href="apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)">
-  <link rel="stylesheet" href="style.css?v=1777883201">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/common.min.js"></script>
+  <link rel="stylesheet" href="style.css?v=20260829">
+  <script src="vendor/marked.min.js"></script>
+  <link rel="stylesheet" href="vendor/github-dark.min.css">
 </head>
-<body>
-  <div class="bg-orbit bg-orbit-1"></div>
-  <div class="bg-orbit bg-orbit-2"></div>
-  <div class="bg-grid"></div>
-
+<body class="selected-ui server-chat-only">
   <!-- ========== Auth View ========== -->
-  <div id="authView" class="view hidden">
+  <div id="authView" class="view auth-view hidden">
     <section class="auth-scene">
       <div class="auth-hero">
         <div class="brand-mark">
@@ -31,19 +25,13 @@
         <h1>AI Dialogue</h1>
         <p>轻巧、连续、适合手机使用的私人 AI 工作台。</p>
 
-        <div class="auth-hero-notes">
-          <div class="note-chip">会话持久保存</div>
-          <div class="note-chip">多模型切换</div>
-          <div class="note-chip">远程控制</div>
-        </div>
       </div>
 
       <div class="auth-panel">
         <div class="auth-card">
           <div class="auth-header">
-            <div class="auth-badge">secure access</div>
             <h2>欢迎回来</h2>
-            <p>登录后继续你的对话和设备控制。</p>
+            <p>登录后继续你的对话。</p>
           </div>
 
           <div class="auth-tabs">
@@ -88,14 +76,25 @@
   <!-- ========== Chat View ========== -->
   <div id="chatView" class="view hidden">
     <div class="shell">
-      <aside id="sidebar">
+      <nav class="dialogue-rail" aria-label="主导航">
+        <button id="railChatBtn" class="rail-button rail-brand" type="button" title="当前对话" aria-label="当前对话"><span class="ui-icon icon-chat" aria-hidden="true"></span></button>
+        <div class="rail-links">
+          <button id="railNewChatBtn" class="rail-button" type="button" title="新对话" aria-label="新对话"><span class="ui-icon icon-plus" aria-hidden="true"></span></button>
+          <button id="railHistoryBtn" class="rail-button" type="button" title="历史会话" aria-label="历史会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-history" aria-hidden="true"></span></button>
+          <button id="railSearchBtn" class="rail-button" type="button" title="搜索会话" aria-label="搜索会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-search" aria-hidden="true"></span></button>
+        </div>
+        <button id="settingsBtn" class="rail-button rail-settings" type="button" title="设置" aria-label="设置"><span class="ui-icon icon-settings" aria-hidden="true"></span></button>
+      </nav>
+      <aside id="sidebar" class="sidebar-panel" role="dialog" aria-modal="true" aria-label="历史会话">
         <div class="sidebar-top">
           <div class="sidebar-title-row">
             <div>
-              <div class="sidebar-kicker">workspace</div>
-              <h3>对话</h3>
+              <h3>历史会话</h3>
             </div>
-            <button id="logoutBtn" class="icon-btn" title="退出登录">↗</button>
+            <div class="sidebar-actions">
+              <button id="closeHistoryBtn" class="icon-btn" type="button" title="关闭历史会话" aria-label="关闭历史会话"><span class="ui-icon icon-close" aria-hidden="true"></span></button>
+              <button id="logoutBtn" class="icon-btn hidden" title="退出登录" tabindex="-1" hidden>↗</button>
+            </div>
           </div>
           <button id="newChatBtn" class="btn btn-primary btn-full new-chat-btn" title="新建对话">
             <span class="icon">＋</span>
@@ -133,475 +132,45 @@
 
       <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
 
-      <main id="main">
+      <main id="main" class="main">
         <div class="main-frame">
           <header class="main-header">
+            <span class="dialogue-wordmark">AI Dialogue</span>
             <div class="main-title-block">
-              <button id="mobileMoreBtn" class="icon-btn mobile-only mobile-more-btn" type="button" title="菜单" aria-label="打开菜单" aria-controls="mobileMoreMenu" aria-expanded="false">⋯</button>
-              <button id="mobileSidebarBtn" class="icon-btn mobile-only" type="button" title="Chats">☰</button>
+              <button id="mobileSidebarBtn" class="icon-btn mobile-only mobile-sidebar-btn" type="button" title="历史会话" aria-label="历史会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-chat" aria-hidden="true"></span></button>
               <div class="main-title-copy" id="mainTitleCopy">
-                <div class="main-kicker">conversation hub</div>
-                <h1>AI Dialogue</h1>
-                <input id="chatTitleInput" class="chat-title-edit" type="text" maxlength="80" placeholder="会话标题…">
+                <h1 role="button" tabindex="0" title="重命名会话">新对话</h1>
+                <input id="chatTitleInput" class="chat-title-edit" type="text" maxlength="80" placeholder="会话标题…" aria-label="会话标题" style="display:none">
+                <button id="titleHistoryBtn" class="icon-btn title-history" type="button" title="切换会话" aria-label="切换会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-chevron" aria-hidden="true"></span></button>
               </div>
             </div>
             <div class="header-actions">
-              <div class="model-selector-shell desktop-only">
-                <label class="select-label" for="modelSelect">模型</label>
-                <select id="modelSelect" class="model-select">
-                  <option value="deepseek-v4-pro">deepseek-v4-pro</option>
-                </select>
-              </div>
-              <button id="mobileNewChatBtn" class="icon-btn mobile-only" type="button" title="新建对话">＋</button>
+              <!-- Model selection is intentionally hidden: a single server-configured
+                   model is used and no provider/model info is exposed in the UI.
+                   The element is kept (not removed) because the chat logic reads
+                   modelSelect.value; an empty value resolves to the server default. -->
+              <select id="modelSelect" class="model-select" hidden aria-hidden="true" tabindex="-1">
+                <option value="">default</option>
+              </select>
+              <button id="mobileNewChatBtn" class="icon-btn mobile-only" type="button" title="新建对话" aria-label="新建对话"><span class="ui-icon icon-plus" aria-hidden="true"></span></button>
+              <button id="mobileMoreBtn" class="icon-btn mobile-only mobile-more-btn" type="button" title="菜单" aria-label="打开菜单" aria-controls="mobileMoreMenu" aria-expanded="false">⋯</button>
             </div>
           </header>
 
-          <nav class="tab-nav" id="tabNav">
-            <button class="tab-btn active" data-tab="chat" type="button">对话</button>
-            <button class="tab-btn hidden" data-tab="memory" type="button">记忆</button>
-            <button class="tab-btn hidden" data-tab="stilltype" type="button">打字</button>
-            <button class="tab-btn hidden" data-tab="control" type="button">控制</button>
-            <button class="tab-btn hidden" data-tab="terminal" type="button">终端</button>
-            <button class="tab-btn hidden" data-tab="finder" type="button">文件</button>
-          </nav>
-
           <section class="content-stage">
-            <div id="tabChat">
+            <div id="tabChat" class="tab-chat">
               <div id="emptyState" class="empty-state">
                 <h2>今天想聊点什么？</h2>
-                <p class="empty-memory-hint">我可以结合你的记忆与历史上下文，帮你更快进入状态。</p>
-                <div class="empty-models" id="emptyModels" hidden></div>
+                <p class="empty-memory-hint">直接在下方输入，开始对话。</p>
               </div>
-              <div id="messagesContainer" class="messages-container hidden"></div>
+              <div id="messagesContainer" class="messages-container hidden" role="region" aria-label="对话记录" tabindex="0"></div>
             </div>
-
-            <div id="tabMemory" class="hidden memory-page">
-              <div class="memory-page-head">
-                <div>
-                  <div class="control-kicker">Local memory</div>
-                  <h2>记忆库</h2>
-                  <p>手动保存长期记忆，只会检索当前登录用户自己的内容。</p>
-                </div>
-                <div id="memoryHealth" class="memory-health">检测中…</div>
-              </div>
-
-              <div class="memory-grid">
-                <section class="memory-panel memory-compose">
-                  <div class="section-head">
-                    <div>
-                      <div class="section-kicker">Manual save</div>
-                      <h3>添加记忆</h3>
-                    </div>
-                    <button id="memoryComposeToggle" class="memory-compose-toggle" type="button" aria-expanded="false">展开</button>
-                  </div>
-                  <div id="memoryComposeBody" class="memory-compose-body hidden">
-                    <input id="memoryTitleInput" class="memory-input" type="text" maxlength="120" placeholder="标题，可选">
-                    <textarea id="memoryContentInput" class="memory-textarea" rows="5" placeholder="写下你希望 AI 长期记住的信息…"></textarea>
-                    <div class="memory-compose-actions">
-                      <label class="memory-toggle">
-                        <input id="memoryEnabledInput" type="checkbox" checked>
-                        <span>启用检索</span>
-                      </label>
-                      <button id="memorySaveBtn" class="btn btn-primary" type="button">保存记忆</button>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="memory-panel memory-library">
-                  <div class="memory-toolbar">
-                    <input id="memorySearchInput" class="memory-search" type="search" placeholder="搜索记忆…">
-                    <select id="memoryFilterSelect" class="memory-filter">
-                      <option value="all">全部</option>
-                      <option value="enabled">已启用</option>
-                      <option value="disabled">已禁用</option>
-                    </select>
-                    <button id="memoryRefreshBtn" class="finder-tool-btn" type="button">刷新</button>
-                  </div>
-                  <div id="memoryList" class="memory-list"></div>
-                  <div id="memoryEmpty" class="memory-empty hidden">暂无记忆。</div>
-                </section>
-              </div>
-            </div>
-
-            <div id="tabStilltype" class="hidden stilltype-page" aria-label="打字练习">
-              <main class="stilltype-app" data-stilltype-root>
-                <section class="stilltype-screen stilltype-setup-screen is-active" id="stilltypeSetupScreen" aria-labelledby="stilltypeAppTitle">
-                  <div class="stilltype-setup-wrap">
-                    <header class="stilltype-setup-header">
-                      <p class="stilltype-quiet-label">Typing practice</p>
-                      <h2 id="stilltypeAppTitle">Stilltype</h2>
-                      <p class="stilltype-intro">
-                        Paste a passage, then move through it one line at a time.
-                      </p>
-                    </header>
-
-                    <div class="stilltype-editor-panel">
-                      <label class="stilltype-text-label" for="stilltypeSourceText">练习文本</label>
-                      <textarea
-                        id="stilltypeSourceText"
-                        class="stilltype-source-text"
-                        spellcheck="false"
-                        autocomplete="off"
-                      ></textarea>
-                    </div>
-
-                    <aside class="stilltype-start-panel" aria-label="练习操作">
-                      <div class="stilltype-panel-copy">
-                        <p class="stilltype-quiet-label">Focus mode</p>
-                        <h3>逐行打字，错误即时回退。</h3>
-                        <p>适合练习英文段落、短句节奏和键盘准确度。原有 Stilltype 的输入、统计和结果体验保持不变。</p>
-                      </div>
-                      <div class="stilltype-shortcuts">
-                        <span>Enter 下一行</span>
-                        <span>Backspace 撤回</span>
-                        <span>Esc 返回</span>
-                      </div>
-                      <div class="stilltype-setup-actions">
-                        <button class="stilltype-button stilltype-primary-button" id="stilltypeStartButton" type="button">
-                          开始练习
-                        </button>
-                        <button class="stilltype-button stilltype-ghost-button" id="stilltypeSampleButton" type="button">
-                          载入示例
-                        </button>
-                        <button class="stilltype-button stilltype-ghost-button" id="stilltypeClearButton" type="button">
-                          清空文本
-                        </button>
-                      </div>
-                    </aside>
-                  </div>
-                </section>
-
-                <section class="stilltype-screen stilltype-typing-screen" id="stilltypeTypingScreen" aria-label="打字练习界面">
-                  <header class="stilltype-typing-topbar">
-                    <button class="stilltype-text-button" id="stilltypeBackButton" type="button" aria-label="返回文本输入界面">
-                      更换文本
-                    </button>
-                    <div class="stilltype-stats-bar" aria-live="polite">
-                      <span id="stilltypeLineProgress">第 0 / 0 行</span>
-                      <span id="stilltypeAccuracyStat">准确率 100%</span>
-                      <span id="stilltypeTimeStat">00:00</span>
-                      <span id="stilltypeSpeedStat">WPM 0 · CPM 0</span>
-                    </div>
-                  </header>
-
-                  <div class="stilltype-typing-stage" id="stilltypeTypingStage">
-                    <div class="stilltype-typing-line" id="stilltypeTypingLine" aria-live="polite"></div>
-                    <p class="stilltype-line-transition-hint" id="stilltypeLineTransitionHint" aria-live="polite"></p>
-                    <p class="stilltype-mistake-toast" id="stilltypeMistakeToast" aria-live="polite">line reset</p>
-                    <p class="stilltype-hint" id="stilltypeTypingHint">Click anywhere to keep focus. Esc returns.</p>
-                  </div>
-
-                  <input
-                    class="stilltype-keyboard-capture"
-                    id="stilltypeKeyboardInput"
-                    type="text"
-                    inputmode="text"
-                    autocomplete="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    aria-label="键盘输入捕获"
-                  />
-                </section>
-
-                <section class="stilltype-screen stilltype-result-screen" id="stilltypeResultScreen" aria-labelledby="stilltypeResultTitle">
-                  <div class="stilltype-result-panel">
-                    <p class="stilltype-quiet-label">Completed</p>
-                    <h2 id="stilltypeResultTitle">练习完成</h2>
-
-                    <dl class="stilltype-result-grid">
-                      <div>
-                        <dt>总用时</dt>
-                        <dd id="stilltypeResultTime">00:00</dd>
-                      </div>
-                      <div>
-                        <dt>准确率</dt>
-                        <dd id="stilltypeResultAccuracy">100%</dd>
-                      </div>
-                      <div>
-                        <dt>WPM</dt>
-                        <dd id="stilltypeResultWpm">0</dd>
-                      </div>
-                      <div>
-                        <dt>错误次数</dt>
-                        <dd id="stilltypeResultErrors">0</dd>
-                      </div>
-                      <div>
-                        <dt>完成字符数</dt>
-                        <dd id="stilltypeResultChars">0</dd>
-                      </div>
-                    </dl>
-
-                    <section class="stilltype-mistake-summary" id="stilltypeResultMistakeSummary" aria-label="错误位置汇总">
-                      <h3>错误位置</h3>
-                      <div id="stilltypeResultMistakeList">没有错误标记</div>
-                    </section>
-
-                    <div class="stilltype-result-actions">
-                      <button class="stilltype-button stilltype-primary-button" id="stilltypeRestartButton" type="button">
-                        重新开始
-                      </button>
-                      <button class="stilltype-button stilltype-ghost-button" id="stilltypeChangeTextButton" type="button">
-                        更换文本
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              </main>
-            </div>
-
-            <div id="tabControl" class="hidden control-page">
-              <div class="control-page-head">
-                <div class="control-page-copy">
-                  <div class="control-kicker">Remote console</div>
-                  <h2>控制中心</h2>
-                </div>
-                <div class="control-status-strip" aria-live="polite">
-                  <span class="control-live-dot" id="controlLiveDot"></span>
-                  <span id="controlStatus">等待连接控制服务</span>
-                  <span class="control-last" id="controlLastRefresh">尚未刷新</span>
-                  <button id="controlRefreshBtn" class="control-refresh-btn" type="button">刷新</button>
-                </div>
-              </div>
-
-              <div class="control-sections">
-                <section class="control-section">
-                  <div class="section-head">
-                    <div>
-                      <div class="section-kicker">Quick controls</div>
-                      <h3>声音与亮度</h3>
-                    </div>
-                  </div>
-                  <div class="control-grid control-grid-2">
-                    <div class="ctrl-card">
-                      <div class="ctrl-label">音量</div>
-                      <div class="ctrl-slider-row">
-                        <button class="ctrl-icon-btn" id="muteBtn" type="button" aria-label="Mute or unmute">
-                          <svg id="speakerIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
-                        </button>
-                        <div class="ctrl-slider-shell">
-                          <div class="ctrl-slider-track"><span id="volFill" class="ctrl-slider-fill"></span></div>
-                          <input type="range" id="volSlider" min="0" max="100" value="50" class="ctrl-slider ctrl-slider-vol">
-                        </div>
-                        <span class="ctrl-val" id="volVal">50</span>
-                      </div>
-                      <div class="ctrl-presets" aria-label="音量快捷档位">
-                        <button class="ctrl-preset" type="button" data-control-preset="volume:25">25</button>
-                        <button class="ctrl-preset" type="button" data-control-preset="volume:50">50</button>
-                        <button class="ctrl-preset" type="button" data-control-preset="volume:75">75</button>
-                        <button class="ctrl-preset" type="button" data-control-preset="volume:100">100</button>
-                      </div>
-                    </div>
-                    <div class="ctrl-card">
-                      <div class="ctrl-label">亮度</div>
-                      <div class="ctrl-slider-row">
-                        <svg class="ctrl-icon" width="16" height="16" viewBox="0 0 24 24" fill="var(--accent)"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M18.36 5.64l1.41-1.41"/></svg>
-                        <div class="ctrl-slider-shell">
-                          <div class="ctrl-slider-track"><span id="briFill" class="ctrl-slider-fill"></span></div>
-                          <input type="range" id="briSlider" min="0" max="100" value="70" class="ctrl-slider ctrl-slider-bri">
-                        </div>
-                        <span class="ctrl-val" id="briVal">70</span>
-                      </div>
-                      <div class="ctrl-presets" aria-label="亮度快捷档位">
-                        <button class="ctrl-preset" type="button" data-control-preset="brightness:25">25</button>
-                        <button class="ctrl-preset" type="button" data-control-preset="brightness:50">50</button>
-                        <button class="ctrl-preset" type="button" data-control-preset="brightness:75">75</button>
-                        <button class="ctrl-preset" type="button" data-control-preset="brightness:100">100</button>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="control-section">
-                  <div class="section-head">
-                    <div>
-                      <div class="section-kicker">Device status</div>
-                      <h3>内存与蓝牙</h3>
-                    </div>
-                  </div>
-                  <div class="control-grid control-grid-2">
-                    <div class="ctrl-card ctrl-card-tall" id="memoryCard">
-                      <div class="ctrl-card-head">
-                        <div class="ctrl-label">内存</div>
-                        <span class="ctrl-state-pill" id="memLoadTag">读取中</span>
-                      </div>
-                      <div class="mem-body">
-                        <div class="mem-ring">
-                          <svg viewBox="0 0 84 84"><circle class="mem-ring-bg" cx="42" cy="42" r="33"/><circle class="mem-ring-fill" id="memRing" cx="42" cy="42" r="33"/></svg>
-                          <div class="mem-ring-label">
-                            <span class="mem-pct" id="memPct">—</span>
-                            <span class="mem-sub">RAM</span>
-                          </div>
-                        </div>
-                        <div class="mem-stats">
-                          <div class="mem-row"><span class="mem-key">Used</span><span class="mem-val" id="mUsed">—</span></div>
-                          <div class="mem-row"><span class="mem-key">Free</span><span class="mem-val" id="mFree">—</span></div>
-                          <div class="mem-row"><span class="mem-key">Total</span><span class="mem-val" id="mTotal">—</span></div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="ctrl-card">
-                      <div class="ctrl-card-head">
-                        <div class="ctrl-label">蓝牙</div>
-                        <span class="ctrl-state-pill" id="btHint">读取中</span>
-                      </div>
-                      <div class="toggle-body">
-                        <span class="toggle-status" id="btStatus">Unknown</span>
-                        <label class="tog">
-                          <input type="checkbox" id="btToggle"><span class="tog-track"></span><span class="tog-thumb"></span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="control-section">
-                  <div class="section-head">
-                    <div>
-                      <div class="section-kicker">Applications</div>
-                      <h3>应用</h3>
-                    </div>
-                  </div>
-                  <div class="ctrl-card ctrl-card-full">
-                    <div class="app-input-row">
-                      <input type="text" id="appNameInput" class="inp" placeholder="应用名称…">
-                      <div class="app-action-row">
-                        <button id="appOpenBtn" class="btn btn-ctrl" type="button">打开</button>
-                        <button id="appCloseBtn" class="btn btn-ctrl-ghost" type="button">关闭</button>
-                      </div>
-                    </div>
-                    <div class="running-app-toolbar">
-                      <input id="appSearchInput" class="app-search" type="search" placeholder="搜索正在运行的应用…">
-                      <button id="appRefreshBtn" class="finder-tool-btn" type="button">刷新</button>
-                    </div>
-                    <div id="appStatus" class="app-status">正在扫描运行中的应用…</div>
-                    <div class="running-app-list" id="appChips"></div>
-                  </div>
-                </section>
-
-                <section class="control-section">
-                  <div class="section-head">
-                    <div>
-                      <div class="section-kicker">Network</div>
-                      <h3>VPN</h3>
-                    </div>
-                  </div>
-                  <div class="ctrl-card ctrl-card-full">
-                    <div class="vpn-inner" id="vpnList">
-                      <span class="vpn-empty">未发现 VPN 配置</span>
-                    </div>
-                  </div>
-                </section>
-              </div>
-            </div>
-            <div id="tabTerminal" class="hidden terminal-page">
-              <div class="terminal-page-head">
-                <div class="terminal-title-block">
-                  <div class="control-kicker">Remote terminal</div>
-                  <h2>终端</h2>
-                  <p>像在电脑终端里一样运行命令、查看输出、切换目录和复制结果。</p>
-                </div>
-                <div class="terminal-status-pill" aria-live="polite">
-                  <span class="terminal-live-dot"></span>
-                  <span id="terminalStatus">待命</span>
-                </div>
-              </div>
-
-              <section class="terminal-workbench" aria-label="远程终端">
-                <div class="terminal-toolbar">
-                  <div class="terminal-cwd-chip">
-                    <span>当前目录</span>
-                    <strong id="terminalCwd">~</strong>
-                  </div>
-                  <div class="terminal-actions">
-                    <button id="terminalHomeBtn" class="btn btn-ctrl-ghost terminal-home-btn" type="button">Home</button>
-                    <button id="terminalCopyBtn" class="btn btn-ctrl-ghost terminal-copy-btn" type="button">复制输出</button>
-                    <button id="terminalClearBtn" class="btn btn-ctrl-ghost terminal-clear-btn" type="button">清空</button>
-                  </div>
-                </div>
-
-                <div id="terminalOutput" class="terminal-output terminal-screen" aria-live="polite">
-                  <div class="terminal-empty">暂无命令输出。</div>
-                </div>
-
-                <div class="terminal-prompt-row">
-                  <div class="terminal-prompt-label">
-                    <span id="terminalPromptCwd">~</span>
-                    <span>$</span>
-                  </div>
-                  <input type="text" id="terminalInput" class="terminal-input" placeholder="输入命令…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text">
-                  <button id="terminalRunBtn" class="btn btn-ctrl terminal-run-btn" type="button">运行</button>
-                </div>
-              </section>
-            </div>
-            <div id="tabFinder" class="hidden finder-page">
-              <div class="finder-page-head">
-                <div class="control-kicker">File manager</div>
-                <h2>文件</h2>
-                <p>手机端文件管理。</p>
-              </div>
-
-              <div class="finder-toolbar">
-                <button id="finderUpBtn" class="finder-tool-btn" type="button">↑ 上级</button>
-                <button id="finderRefreshBtn" class="finder-tool-btn" type="button">↻ 刷新</button>
-                <button id="finderSelectAllBtn" class="finder-tool-btn" type="button">全选</button>
-                <button id="finderPasteBtn" class="finder-tool-btn" type="button" disabled>粘贴</button>
-                <button id="finderUploadBtn" class="finder-tool-btn" type="button">上传</button>
-                <button id="finderNewFolderBtn" class="finder-tool-btn" type="button">新文件夹</button>
-                <input id="finderSearchInput" class="finder-search" type="search" placeholder="搜索当前文件夹…">
-              </div>
-
-              <div class="finder-path-row">
-                <div id="finderBreadcrumbs" class="finder-breadcrumbs"></div>
-                <div id="finderSummary" class="finder-summary"></div>
-              </div>
-
-              <div id="finderList" class="finder-list"></div>
-              <div id="finderEmpty" class="finder-empty hidden"></div>
-
-              <div id="finderSelectionBar" class="finder-selection-bar hidden">
-                <div class="finder-selection-copy">
-                  <div id="finderSelectionCount" class="finder-selection-count">已选 0 项</div>
-                  <div class="finder-selection-hint">选择操作</div>
-                </div>
-                <div class="finder-selection-actions">
-                  <button id="finderDownloadBtn" class="finder-action-btn" type="button">下载</button>
-                  <button id="finderCopyBtn" class="finder-action-btn" type="button">复制</button>
-                  <button id="finderCutBtn" class="finder-action-btn" type="button">剪切</button>
-                  <button id="finderRenameBtn" class="finder-action-btn" type="button" disabled>重命名</button>
-                  <button id="finderDeleteBtn" class="finder-action-btn danger" type="button">删除</button>
-                  <button id="finderClearBtn" class="finder-action-btn ghost" type="button">清除</button>
-                </div>
-              </div>
-
-              <input id="finderUploadInput" type="file" hidden multiple>
-            </div>
-
           </section>
 
-          <button id="scrollToBottomBtn" class="scroll-bottom-btn hidden" type="button" title="回到最新">↓</button>
+          <button id="scrollToBottomBtn" class="scroll-bottom-btn hidden" type="button" title="回到最新" aria-label="回到最新">↓</button>
 
           <footer id="inputArea" class="input-area">
-            <div class="input-topline">
-              <div class="input-topline-left">
-                <span class="input-label">输入</span>
-                <button id="mobileModelBtn" class="mobile-model-pill mobile-only" type="button">
-                  <span class="mobile-model-pill-label">模型</span>
-                  <span id="mobileCurrentModelLabel" class="mobile-model-pill-value">未选择</span>
-                </button>
-              </div>
-              <span class="input-hint-inline desktop-only">Enter 发送 · Shift+Enter 换行</span>
-            </div>
-            <div id="promptQuickbar" class="prompt-quickbar" aria-label="输入助手快捷提示" aria-hidden="true" inert>
-              <button class="prompt-chip" type="button" data-prompt-action="summarize">总结这段</button>
-              <button class="prompt-chip" type="button" data-prompt-action="expand">继续展开</button>
-              <button class="prompt-chip" type="button" data-prompt-action="rewrite">改写清楚</button>
-              <button class="prompt-chip" type="button" data-prompt-action="steps">列步骤</button>
-            </div>
             <div class="composer-shell">
-              <button id="promptAssistToggle" class="prompt-assist-toggle" type="button" aria-expanded="false" aria-controls="promptQuickbar" title="输入助手">
-                <span class="prompt-assist-icon">✦</span>
-                <span class="prompt-assist-label">助手</span>
-              </button>
               <button id="webSearchToggle" class="web-search-toggle hidden" type="button" aria-pressed="false" title="联网搜索未配置" disabled hidden>
                 <span class="web-search-icon">⌕</span>
                 <span class="web-search-label">联网</span>
@@ -610,18 +179,17 @@
                 id="messageInput"
                 class="message-input"
                 placeholder="输入消息…"
+                aria-label="输入消息"
+                title="Enter 发送，Shift+Enter 换行"
                 rows="1"
               ></textarea>
-              <button id="sendBtn" class="btn btn-primary btn-send" disabled>
-                <span class="send-icon">↑</span>
+              <button id="sendBtn" class="btn btn-primary btn-send" type="button" aria-label="发送消息" title="发送消息" disabled>
+                <span class="ui-icon icon-send" aria-hidden="true"></span>
               </button>
-              <button id="stopBtn" class="btn btn-stop btn-send hidden" type="button" title="中止回答">
-                <span>⏹</span>
+              <button id="stopBtn" class="btn btn-stop btn-send hidden" type="button" title="中止回答" aria-label="停止生成">
+                <span class="stop-square" aria-hidden="true"></span>
               </button>
             </div>
-            <p class="input-hint">
-              AI 可能出错，重要信息请核对。
-            </p>
           </footer>
         </div>
       </main>
@@ -640,17 +208,7 @@
         <div class="mobile-more-section mobile-more-session-actions">
           <button class="mobile-more-item mobile-more-primary" type="button" data-mobile-action="sidebar">会话列表</button>
           <button class="mobile-more-item mobile-more-primary" type="button" data-mobile-action="new-chat">新对话</button>
-        </div>
-      </div>
-      <div class="mobile-more-group mobile-more-page-group">
-        <div class="mobile-more-group-label">页面</div>
-        <div class="mobile-more-section mobile-more-page-actions">
-          <button class="mobile-more-item" type="button" data-mobile-tab="chat">对话</button>
-          <button class="mobile-more-item hidden" type="button" data-mobile-tab="memory">记忆</button>
-          <button class="mobile-more-item hidden" type="button" data-mobile-tab="stilltype">打字</button>
-          <button class="mobile-more-item hidden" type="button" data-mobile-tab="control">控制</button>
-          <button class="mobile-more-item hidden" type="button" data-mobile-tab="terminal">终端</button>
-          <button class="mobile-more-item hidden" type="button" data-mobile-tab="finder">文件</button>
+          <button class="mobile-more-item" type="button" data-mobile-action="settings">设置</button>
         </div>
       </div>
       <div class="mobile-more-group mobile-more-theme-group">
@@ -667,60 +225,62 @@
     </div>
   </div>
 
-  <div id="fileSheetBackdrop" class="sheet-backdrop hidden"></div>
-  <div id="fileSheet" class="file-sheet hidden" role="dialog" aria-modal="true" aria-label="File details">
-    <div class="file-sheet-head">
+  <!-- ========== Settings ========== -->
+  <div id="settingsBackdrop" class="settings-backdrop hidden"></div>
+  <div id="settingsModal" class="settings-modal hidden" role="dialog" aria-modal="true" aria-label="设置">
+    <div class="settings-head">
       <div>
-        <div class="file-sheet-kicker">Finder</div>
-        <div class="file-sheet-title" id="fileSheetTitle">文件详情</div>
+        <div class="settings-kicker">Settings</div>
+        <div class="settings-title">设置</div>
       </div>
-      <button id="closeFileSheet" class="icon-btn" type="button" title="Close">✕</button>
+      <button id="closeSettingsBtn" class="icon-btn" type="button" title="关闭" aria-label="关闭">✕</button>
     </div>
-    <div class="file-sheet-meta" id="fileSheetMeta"></div>
-    <div id="fileSheetPreview" class="file-sheet-preview">未选择文件。</div>
-    <div class="file-sheet-actions">
-      <button id="fileDownloadBtn" class="btn btn-primary btn-full" type="button">下载</button>
-      <button id="fileRenameBtn" class="btn btn-secondary btn-full" type="button">重命名</button>
-      <button id="fileDeleteBtn" class="btn btn-danger btn-full" type="button">删除</button>
+    <div class="settings-body">
+      <section class="settings-section">
+        <div class="settings-section-title">外观</div>
+        <div class="settings-theme" role="group" aria-label="外观">
+          <button class="settings-theme-btn theme-choice" type="button" data-theme-choice="system" aria-pressed="false">跟随系统</button>
+          <button class="settings-theme-btn theme-choice" type="button" data-theme-choice="light" aria-pressed="false">浅色</button>
+          <button class="settings-theme-btn theme-choice" type="button" data-theme-choice="dark" aria-pressed="false">深色</button>
+        </div>
+      </section>
+
+      <form id="settingsForm" class="settings-section" autocomplete="off">
+        <div class="settings-section-title">账号</div>
+        <div class="input-group">
+          <label for="settingsUsername">用户名</label>
+          <input type="text" id="settingsUsername" autocomplete="username" minlength="2" maxlength="30" placeholder="用户名">
+        </div>
+
+        <div class="settings-divider"></div>
+        <div class="settings-subtle">修改密码（不修改可留空）</div>
+        <div class="input-group">
+          <label for="settingsNewPassword">新密码</label>
+          <input type="password" id="settingsNewPassword" autocomplete="new-password" minlength="6" placeholder="至少 6 位，留空表示不修改">
+        </div>
+        <div class="input-group">
+          <label for="settingsConfirmPassword">确认新密码</label>
+          <input type="password" id="settingsConfirmPassword" autocomplete="new-password" placeholder="再次输入新密码">
+        </div>
+
+        <div class="settings-divider"></div>
+        <div class="input-group">
+          <label for="settingsCurrentPassword">当前密码</label>
+          <input type="password" id="settingsCurrentPassword" autocomplete="current-password" placeholder="保存修改需验证当前密码">
+        </div>
+
+        <p id="settingsMessage" class="settings-message hidden"></p>
+        <div class="settings-actions">
+          <button type="submit" class="btn btn-primary" id="settingsSaveBtn">保存修改</button>
+        </div>
+      </form>
+
+      <section class="settings-section">
+        <p class="settings-subtle">Enter 发送 · Shift+Enter 换行<br>AI 可能出错，重要信息请核对。</p>
+        <button id="settingsLogoutBtn" class="btn btn-ghost btn-full" type="button">退出登录</button>
+      </section>
     </div>
   </div>
-
-  <div id="transferBackdrop" class="sheet-backdrop hidden"></div>
-  <div id="transferSheet" class="transfer-sheet hidden" role="dialog" aria-modal="true" aria-label="File transfer">
-    <div class="transfer-head">
-      <div>
-        <div class="transfer-kicker">Transfer</div>
-        <div id="transferTitle" class="transfer-title">准备中…</div>
-      </div>
-      <button id="closeTransferSheet" class="icon-btn" type="button" title="Close">✕</button>
-    </div>
-    <div id="transferFile" class="transfer-file">—</div>
-    <div class="transfer-track">
-      <div id="transferProgress" class="transfer-progress"></div>
-    </div>
-    <div class="transfer-stats">
-      <span id="transferPercent">0%</span>
-      <span id="transferSpeed">0 B/s</span>
-      <span id="transferEta">ETA --</span>
-    </div>
-    <div class="transfer-actions">
-      <button id="transferCancelBtn" class="btn btn-secondary btn-full" type="button">取消</button>
-    </div>
-  </div>
-
-  <div id="modelSheetBackdrop" class="sheet-backdrop hidden"></div>
-  <div id="modelSheet" class="model-sheet hidden" role="dialog" aria-modal="true" aria-label="Model selector">
-    <div class="model-sheet-head">
-      <div>
-        <div class="model-sheet-kicker">Model Selection</div>
-        <div class="model-sheet-title">选择模型</div>
-      </div>
-      <button id="closeModelSheet" class="icon-btn" type="button" title="Close">✕</button>
-    </div>
-    <div id="modelSheetList" class="model-sheet-list"></div>
-  </div>
-
-  <script src="stilltype.js?v=1777883201"></script>
-  <script src="app.js?v=1777883201"></script>
+  <script type="module" src="app.mjs?v=20260830"></script>
 </body>
 </html>
