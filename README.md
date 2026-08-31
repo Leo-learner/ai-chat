@@ -177,14 +177,18 @@ sudo systemctl daemon-reload
 sudo systemctl enable ai-chat
 sudo systemctl start ai-chat
 
-# 5. 安装仓库内经过版本控制的 Nginx 配置
-sudo cp deploy/nginx/aichat.dkz12345.com.conf /etc/nginx/sites-available/aichat.dkz12345.com
+# 5. 首次安装先使用 HTTP bootstrap 配置
+sudo cp deploy/nginx/aichat.dkz12345.com.bootstrap.conf /etc/nginx/sites-available/aichat.dkz12345.com
 
 sudo ln -sf /etc/nginx/sites-available/aichat.dkz12345.com /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 # 6. HTTPS
 sudo certbot --nginx -d aichat.dkz12345.com
+
+# 7. 证书签发后切换到仓库内的最终 HTTPS 配置
+sudo cp deploy/nginx/aichat.dkz12345.com.conf /etc/nginx/sites-available/aichat.dkz12345.com
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ### 数据迁移
