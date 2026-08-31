@@ -3,9 +3,8 @@ const { clampInt } = require('../lib/math');
 const { createLinkedTimeoutSignal } = require('../lib/timeout');
 const { normalizeSummaryText } = require('../lib/chat-context');
 
-module.exports = function createSearchModule({ authRequired, getAllModels, appMode }) {
+module.exports = function createSearchModule({ authRequired, getAllModels }) {
   const router = express.Router();
-  const APP_MODE = appMode;
 
 const WEB_SEARCH_CONFIG = {
   enabled: process.env.WEB_SEARCH_ENABLED === 'true',
@@ -122,7 +121,7 @@ router.get('/models', authRequired, (req, res) => {
   const models = getAllModels();
   res.json({
     models,
-    appMode: APP_MODE || null,
+    appMode: 'server-chat-only',
     webSearch: {
       enabled: isWebSearchAvailable(),
       provider: WEB_SEARCH_CONFIG.provider,
@@ -136,7 +135,6 @@ router.get('/models', authRequired, (req, res) => {
     service: {
       buildWebSearchContext,
       isWebSearchAvailable,
-      config: WEB_SEARCH_CONFIG,
     },
   };
 };

@@ -7,10 +7,8 @@ const cors = require('cors');
 const { v4: uuid } = require('uuid');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
-const { spawn } = require('child_process');
 
-const { db, DB_PATH, userQueries, chatQueries, messageQueries, memoryQueries } = require('./db');
+const { db, DB_PATH, userQueries, chatQueries, messageQueries } = require('./db');
 const { signToken, authRequired } = require('./auth');
 const { DEFAULT_CHAT_MODEL, getAllModels, normalizeChatModel, streamChat } = require('./providers');
 const { createLogger, createRootLogger } = require('./lib/logger');
@@ -18,11 +16,8 @@ const { createLogger, createRootLogger } = require('./lib/logger');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'Leo';
 const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const APP_MODE = process.env.APP_MODE || '';
-const IS_SERVER_CHAT_ONLY = APP_MODE === 'server-chat-only';
 const rootLogger = createRootLogger();
 const MAX_MESSAGE_CHARS = Number(process.env.MAX_MESSAGE_CHARS || 32000);
 const MAX_SYSTEM_PROMPT_CHARS = Number(process.env.MAX_SYSTEM_PROMPT_CHARS || 16000);
@@ -122,16 +117,10 @@ const createMemoryModule = require('./routes/memory');
 const createSearchModule = require('./routes/search');
 const createStreamRouter = require('./routes/stream');
 
-const memoryModule = createMemoryModule({
-  memoryQueries,
-  authRequired,
-  isServerChatOnly: IS_SERVER_CHAT_ONLY,
-  logger: rootLogger,
-});
+const memoryModule = createMemoryModule();
 const searchModule = createSearchModule({
   authRequired,
   getAllModels,
-  appMode: APP_MODE,
 });
 
 app.use('/api/auth', createAuthRouter({ userQueries, signToken, authRequired, authLimiter }));
@@ -159,90 +148,13 @@ app.use('/api', createStreamRouter({
   maxMessageChars: MAX_MESSAGE_CHARS,
 }));
 
-// ── Mac Controller ──────────────────────────────────────
-const CONTROL_PORT = Number(process.env.MAC_CONTROLLER_PORT || process.env.CONTROL_PORT || 5050);
-const CONTROL_HOST = process.env.MAC_CONTROLLER_HOST || '127.0.0.1';
-const CONTROL_PROXY_HOST = CONTROL_HOST === '0.0.0.0' ? '127.0.0.1' : CONTROL_HOST;
-const CONTROL_URL = process.env.CONTROL_URL || `http://${CONTROL_PROXY_HOST}:${CONTROL_PORT}`;
-const CONTROL_AUTO_START = !IS_SERVER_CHAT_ONLY && process.env.CONTROL_AUTO_START !== 'false';
-
-// Start Python Mac Controller as child process
-let controlProcess = null;
-let controlHealthTimer = null;
-let restartPromise = null;
-
-function startControlServer() {
-  const pyPath = path.join(__dirname, 'mac-controller', 'server.py');
-  const venvPython = path.join(__dirname, 'mac-controller', '.venv', 'bin', 'python3');
-  const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python3';
-  if (!fs.existsSync(pyPath)) {
-    rootLogger.warn('Mac Controller not found, skipping');
-    return;
-  }
-  controlProcess = spawn(pythonCmd, [pyPath], {
-    cwd: path.join(__dirname, 'mac-controller'),
-    stdio: 'pipe',
-  });
-  controlProcess.stdout.on('data', (d) => process.stdout.write(`[control] ${d}`));
-  controlProcess.stderr.on('data', (d) => process.stderr.write(`[control] ${d}`));
-  controlProcess.on('exit', (code) => {
-    rootLogger.warn(`Mac Controller exited (code ${code})`);
-    controlProcess = null;
-    // Auto-restart on unexpected exit (non-zero, not intentionally killed)
-    if (code !== 0) scheduleRestart(3000);
-  });
-    rootLogger.info(`Mac Controller starting at ${CONTROL_URL}`);
-}
-
-// Serialized restart — prevents race between exit handler and health check
-function scheduleRestart(delayMs) {
-  if (restartPromise) return restartPromise;
-  restartPromise = new Promise(resolve => {
-    rootLogger.warn(`Restarting Mac Controller in ${delayMs / 1000}s...`);
-    setTimeout(() => {
-      startControlServer();
-      restartPromise = null;
-      resolve();
-    }, delayMs);
-  });
-  return restartPromise;
-}
-
-// Periodic health check — verifies the controller is alive every 30s
-function startControlHealthCheck() {
-  if (controlHealthTimer) clearInterval(controlHealthTimer);
-  controlHealthTimer = setInterval(async () => {
-    try {
-      const headers = {};
-      if (process.env.CONTROL_INTERNAL_TOKEN) headers['X-Internal-Token'] = process.env.CONTROL_INTERNAL_TOKEN;
-      const res = await fetch(`${CONTROL_URL}/api/volume`, { headers, signal: AbortSignal.timeout(5000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      rootLogger.warn(`Control health check failed: ${err.message}`);
-      // Only restart if process is actually gone (not just unresponsive briefly)
-      if (!controlProcess) scheduleRestart(1000);
-    }
-  }, 30000);
-}
-
-// ── Server-chat-only guards ─────────────────────────────
-let finderRoutes;
-if (IS_SERVER_CHAT_ONLY) {
-  app.use('/api/control', (req, res) => {
-    res.status(403).json({ error: 'Control is disabled in server-chat-only mode.' });
-  });
-  app.use('/api/finder', (req, res) => {
-    res.status(403).json({ error: 'Finder is disabled in server-chat-only mode.' });
-  });
-} else {
-  // Control proxy — routes in ./routes/control.js
-  const createControlRouter = require('./routes/control');
-  app.use('/api/control', createControlRouter({ controlUrl: CONTROL_URL }));
-
-  // ── Finder / File Browser ──────────────────────────────
-  finderRoutes = require('./routes/finder');
-  app.use('/api/finder', finderRoutes);
-}
+// Keep explicit denials for legacy endpoints so old clients fail closed.
+app.use('/api/control', (req, res) => {
+  res.status(403).json({ error: 'Control is unavailable on the server build.' });
+});
+app.use('/api/finder', (req, res) => {
+  res.status(403).json({ error: 'Finder is unavailable on the server build.' });
+});
 
 // ── SPA fallback ────────────────────────────────────────
 app.get('*', (req, res) => {
@@ -260,14 +172,4 @@ app.listen(PORT, HOST, () => {
   const configured = Object.values(providers).filter(p => p.configured);
   rootLogger.info(`Providers: ${configured.map(p => p.name).join(', ') || 'none'}`);
   rootLogger.info(`Models: ${getAllModels().length}`);
-  if (!IS_SERVER_CHAT_ONLY) {
-    rootLogger.info(`Finder root: ${finderRoutes.finderRoot || 'not configured'}`);
-  }
-
-  if (CONTROL_AUTO_START) {
-    startControlServer();
-    startControlHealthCheck();
-  } else {
-    rootLogger.info('Mac Controller auto-start disabled');
-  }
 });

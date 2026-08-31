@@ -24,6 +24,25 @@ for (const name of backendModules) {
   if (!server.includes(`require('./routes/${name}')`)) throw new Error(`server.js does not compose ${name} route`);
 }
 
+const removedServerFiles = [
+  'healthcheck.sh',
+  'lib/vector-index.js',
+  'routes/control.js',
+  'routes/finder.js',
+  'scripts/load-secrets.sh',
+  'scripts/monitor.sh',
+  'scripts/smoke-auth.js',
+];
+for (const file of removedServerFiles) {
+  if (fs.existsSync(path.join(root, file))) throw new Error(`Legacy server file returned: ${file}`);
+}
+if (fs.existsSync(path.join(root, 'mac-controller'))) {
+  throw new Error('Legacy Mac controller directory returned');
+}
+if (/routes\/(?:control|finder)|mac-controller|CONTROL_AUTO_START|NGROK_/.test(server)) {
+  throw new Error('server.js still references a removed local-only feature');
+}
+
 const app = read('public/app.mjs');
 for (const name of frontendModules) {
   if (!app.includes(`./modules/${name}.mjs`)) throw new Error(`app.mjs does not import ${name}`);

@@ -68,7 +68,7 @@ function chatListMeta(chat = {}) {
   if (ALLOWED_CHAT_MODELS.length === 1) {
     return formatRelativeChatTime(chat.updated_at || chat.created_at) || '单一模型';
   }
-  return normalizeChatModel(chat.model || DEFAULT_CHAT_MODEL || state._defaultModel || '');
+  return normalizeChatModel(chat.model || DEFAULT_CHAT_MODEL || state.defaultModel || '');
 }
 
 function renderChatList() {

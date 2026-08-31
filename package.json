@@ -9,12 +9,12 @@
   },
   "scripts": {
     "build": "bash scripts/run-node-abi127.sh scripts/build-frontend.js",
+    "test": "bash scripts/run-node-abi127.sh --test --test-concurrency=1 test/*.test.js",
     "prestart": "npm run build",
     "start": "bash scripts/run-node-abi127.sh server.js",
     "dev": "SERVE_DIST=0 bash scripts/run-node-abi127.sh --watch server.js",
-    "check": "bash scripts/run-node-abi127.sh --check server.js && for f in routes/auth.js routes/chat.js routes/memory.js routes/search.js routes/stream.js lib/chat-context.js lib/validation.js public/app.mjs public/modules/*.mjs; do bash scripts/run-node-abi127.sh --check \"$f\" || exit 1; done && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check scripts/smoke-auth.js && bash scripts/run-node-abi127.sh --check scripts/smoke-provider-routing.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh --check scripts/smoke-security-latency.js && bash scripts/run-node-abi127.sh scripts/check-module-boundaries.js && bash scripts/run-node-abi127.sh scripts/check-css.js && bash scripts/run-node-abi127.sh scripts/check-production-frontend.js",
+    "check": "bash scripts/run-node-abi127.sh --check server.js && for f in routes/auth.js routes/chat.js routes/memory.js routes/search.js routes/stream.js lib/chat-context.js lib/validation.js public/app.mjs public/modules/*.mjs; do bash scripts/run-node-abi127.sh --check \"$f\" || exit 1; done && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check scripts/smoke-provider-routing.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh --check scripts/smoke-security-latency.js && bash scripts/run-node-abi127.sh scripts/check-module-boundaries.js && bash scripts/run-node-abi127.sh scripts/check-css.js && bash scripts/run-node-abi127.sh scripts/check-production-frontend.js",
     "smoke:startup": "bash scripts/run-node-abi127.sh scripts/smoke-startup.js",
-    "smoke:auth": "bash scripts/run-node-abi127.sh scripts/smoke-auth.js",
     "smoke:provider": "bash scripts/run-node-abi127.sh scripts/smoke-provider-routing.js",
     "smoke:security-latency": "bash scripts/run-node-abi127.sh scripts/smoke-security-latency.js"
   },
@@ -25,12 +25,12 @@
     "dotenv": "^16.4.5",
     "express": "4.22.2",
     "gpt-tokenizer": "^3.4.0",
-    "iconv-lite": "^0.7.2",
     "jsonwebtoken": "^9.0.2",
     "uuid": "11.1.1"
   },
   "devDependencies": {
     "csso": "^5.0.5",
-    "esbuild": "^0.28.0"
+    "esbuild": "^0.28.0",
+    "jsdom": "^26.1.0"
   }
 }

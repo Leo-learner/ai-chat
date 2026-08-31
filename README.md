@@ -4,13 +4,13 @@
 > **服务器专用版本：`server/aichatupdated-20260628`**
 > 此分支仅用于 Azure 上的 `aichat.dkz12345.com` 生产服务。桌面本地版本请继续使用 `main`；部署时必须保留服务器现有的 `.env`、`providers.json` 和 `data/`。
 
-A self-hosted AI chat web app with streaming responses, Markdown and code rendering, persistent chat history, optional web search, and a responsive production UI.
+A self-hosted AI chat web app with streaming responses, Markdown and code rendering, persistent chat history, optional web search, and a responsive production UI. This branch contains no Mac control, Finder, terminal, ngrok, or local embedding runtime.
 
 ## Features
 
 - AI chat with SSE streaming, stop generation, continue generation, regenerate, message copy, and code-block copy.
 - Conversation history with create, switch, rename, and delete support.
-- Context management with token-budget trimming, older-message summarization, and relevant memory injection.
+- Context management with token-budget trimming and older-message summarization.
 - Optional web search through Tavily, disabled by default.
 - Light, dark, and system themes plus account settings.
 - Responsive UI for desktop and mobile browsers.
@@ -21,7 +21,6 @@ A self-hosted AI chat web app with streaming responses, Markdown and code render
 - SQLite + better-sqlite3
 - Plain HTML/CSS/JavaScript
 - OpenAI-compatible chat providers
-- Ollama for local embeddings
 
 ## Quick Start
 
@@ -54,9 +53,9 @@ npm run dev
 
 ```bash
 npm run check
+npm test
 npm run build
 npm run smoke:startup
-npm run smoke:auth
 npm run smoke:provider
 npm run smoke:security-latency
 ```
@@ -67,12 +66,12 @@ npm run smoke:security-latency
 - Use `.env.example` for public, non-secret configuration examples.
 - Chat model providers are configured in `providers.json`.
 - API keys should be referenced through environment-variable placeholders.
-- Local memory embeddings use Ollama by default with `nomic-embed-text:latest`.
+- This production branch has a fixed `server-chat-only` mode; no mode flag is required.
 
 ## Security Notes
 
 - `data/`, logs, databases, backup files, build artifacts, and local secret files are ignored by Git.
-- Control, terminal, and Finder routes must be protected by backend admin checks. Frontend hiding is not a security boundary.
+- Legacy control and Finder endpoints return a fixed 403 response; their implementations are not shipped.
 - Use a strong `JWT_SECRET` in production. Do not use development defaults.
 
 ## License
@@ -83,7 +82,7 @@ MIT
 
 ## 服务器部署 (Server Chat-Only)
 
-`server/aichatupdated-20260628` 分支是专为服务器部署制作的精简版本：只保留 AI 聊天功能，禁用本地 Mac 控制、终端、文件管理等。
+`server/aichatupdated-20260628` 分支是专为服务器部署制作的精简版本：只保留 AI 聊天功能。本地 Mac 控制、终端、文件管理、ngrok 运维和本地记忆实现已从此分支移除，而非仅通过环境变量隐藏。
 
 ### 功能差异
 
@@ -100,7 +99,6 @@ MIT
 
 ```bash
 # 必需
-APP_MODE=server-chat-only
 JWT_SECRET=<your-strong-random-string>
 OPENROUTER_API_KEY=<your-openrouter-api-key>
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
@@ -112,7 +110,6 @@ NODE_ENV=production
 HOST=127.0.0.1
 JSON_BODY_LIMIT=256kb
 TRUST_PROXY=loopback
-MEMORY_RETRIEVAL_ENABLED=false
 
 # 数据路径
 DB_PATH=/opt/apps/ai-chat/data/chat.db
@@ -138,7 +135,6 @@ npm run build
 
 # 3. 创建 .env
 cat > .env << 'EOF'
-APP_MODE=server-chat-only
 NODE_ENV=production
 HOST=127.0.0.1
 PORT=3200
@@ -146,7 +142,6 @@ JWT_SECRET=<random-string>
 OPENROUTER_API_KEY=<your-key>
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 DEFAULT_CHAT_MODEL=openrouter/free
-ADMIN_USERNAME=<your-username>
 DB_PATH=/opt/apps/ai-chat/data/chat.db
 EOF
 chmod 600 .env

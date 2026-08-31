@@ -75,13 +75,7 @@ const userQueries = {
   findWithPasswordById: db.prepare(`SELECT * FROM users WHERE id = ?`),
   updateUsername: db.prepare(`UPDATE users SET username = ?, updated_at = datetime('now') WHERE id = ?`),
   updatePassword: db.prepare(`UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?`),
-  setRoleByUsername: db.prepare(`UPDATE users SET role = ?, updated_at = datetime('now') WHERE username = ?`),
 };
-
-const configuredAdminUsername = process.env.ADMIN_USERNAME || 'Leo';
-if (configuredAdminUsername) {
-  userQueries.setRoleByUsername.run('admin', configuredAdminUsername);
-}
 
 // ── Chat queries ────────────────────────────────────────
 const chatQueries = {
@@ -109,11 +103,7 @@ const messageQueries = {
   findByChat: db.prepare(`
     SELECT * FROM messages WHERE chat_id = ? ORDER BY datetime(created_at) ASC, rowid ASC
   `),
-  lastByChat: db.prepare(`
-    SELECT * FROM messages WHERE chat_id = ? ORDER BY datetime(created_at) DESC, rowid DESC LIMIT 1
-  `),
   deleteByChat: db.prepare(`DELETE FROM messages WHERE chat_id = ?`),
-  deleteById:   db.prepare(`DELETE FROM messages WHERE id = ?`),
   deleteFromMessageInChat: db.prepare(`
     DELETE FROM messages
     WHERE chat_id = ?
@@ -124,78 +114,4 @@ const messageQueries = {
   `),
 };
 
-// ── Memory queries ──────────────────────────────────────
-const memoryQueries = {
-  create: db.prepare(`
-    INSERT INTO user_memories (
-      id, user_id, title, content, embedding_json, embedding_model,
-      embedding_dim, source_type, source_ref, enabled
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `),
-  listByUser: db.prepare(`
-    SELECT id, title, content, embedding_model, embedding_dim, source_type,
-           source_ref, enabled, created_at, updated_at
-    FROM user_memories
-    WHERE user_id = ?
-    ORDER BY datetime(updated_at) DESC, rowid DESC
-    LIMIT ?
-  `),
-  listByUserAndEnabled: db.prepare(`
-    SELECT id, title, content, embedding_model, embedding_dim, source_type,
-           source_ref, enabled, created_at, updated_at
-    FROM user_memories
-    WHERE user_id = ? AND enabled = ?
-    ORDER BY datetime(updated_at) DESC, rowid DESC
-    LIMIT ?
-  `),
-  searchListByUser: db.prepare(`
-    SELECT id, title, content, embedding_model, embedding_dim, source_type,
-           source_ref, enabled, created_at, updated_at
-    FROM user_memories
-    WHERE user_id = ? AND (title LIKE ? OR content LIKE ?)
-    ORDER BY datetime(updated_at) DESC, rowid DESC
-    LIMIT ?
-  `),
-  searchListByUserAndEnabled: db.prepare(`
-    SELECT id, title, content, embedding_model, embedding_dim, source_type,
-           source_ref, enabled, created_at, updated_at
-    FROM user_memories
-    WHERE user_id = ? AND enabled = ? AND (title LIKE ? OR content LIKE ?)
-    ORDER BY datetime(updated_at) DESC, rowid DESC
-    LIMIT ?
-  `),
-  enabledForSearch: db.prepare(`
-    SELECT id, title, content, embedding_json, embedding_model, embedding_dim,
-           source_type, source_ref, enabled, created_at, updated_at
-    FROM user_memories
-    WHERE user_id = ? AND enabled = 1
-    ORDER BY datetime(updated_at) DESC, rowid DESC
-    LIMIT ?
-  `),
-  findByUser: db.prepare(`
-    SELECT id, user_id, title, content, embedding_json, embedding_model,
-           embedding_dim, source_type, source_ref, enabled, created_at, updated_at
-    FROM user_memories
-    WHERE id = ? AND user_id = ?
-  `),
-  updateMeta: db.prepare(`
-    UPDATE user_memories
-    SET title = ?, enabled = ?, updated_at = datetime('now')
-    WHERE id = ? AND user_id = ?
-  `),
-  updateContent: db.prepare(`
-    UPDATE user_memories
-    SET title = ?, content = ?, embedding_json = ?, embedding_model = ?,
-        embedding_dim = ?, enabled = ?, updated_at = datetime('now')
-    WHERE id = ? AND user_id = ?
-  `),
-  setEnabled: db.prepare(`
-    UPDATE user_memories
-    SET enabled = ?, updated_at = datetime('now')
-    WHERE id = ? AND user_id = ?
-  `),
-  deleteByUser: db.prepare(`DELETE FROM user_memories WHERE id = ? AND user_id = ?`),
-};
-
-module.exports = { db, DB_PATH, userQueries, chatQueries, messageQueries, memoryQueries };
+module.exports = { db, DB_PATH, userQueries, chatQueries, messageQueries };
