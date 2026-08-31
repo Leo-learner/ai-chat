@@ -13,7 +13,8 @@
     "prestart": "npm run build",
     "start": "bash scripts/run-node-abi127.sh server.js",
     "dev": "SERVE_DIST=0 bash scripts/run-node-abi127.sh --watch server.js",
-    "check": "bash scripts/run-node-abi127.sh --check server.js && for f in routes/auth.js routes/chat.js routes/memory.js routes/search.js routes/stream.js lib/chat-context.js lib/validation.js public/app.mjs public/modules/*.mjs; do bash scripts/run-node-abi127.sh --check \"$f\" || exit 1; done && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check scripts/smoke-provider-routing.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh --check scripts/smoke-security-latency.js && bash scripts/run-node-abi127.sh scripts/check-module-boundaries.js && bash scripts/run-node-abi127.sh scripts/check-css.js && bash scripts/run-node-abi127.sh scripts/check-production-frontend.js",
+    "check": "npm run lint && bash scripts/run-node-abi127.sh --check server.js && for f in routes/auth.js routes/chat.js routes/memory.js routes/search.js routes/stream.js lib/chat-context.js lib/validation.js public/app.mjs public/modules/*.mjs; do bash scripts/run-node-abi127.sh --check \"$f\" || exit 1; done && bash scripts/run-node-abi127.sh --check providers.js && bash scripts/run-node-abi127.sh --check scripts/smoke-provider-routing.js && bash scripts/run-node-abi127.sh --check scripts/smoke-startup.js && bash scripts/run-node-abi127.sh --check scripts/smoke-security-latency.js && bash scripts/run-node-abi127.sh scripts/check-module-boundaries.js && bash scripts/run-node-abi127.sh scripts/check-css.js && bash scripts/run-node-abi127.sh scripts/check-production-frontend.js",
+    "lint": "bash scripts/run-node-abi127.sh node_modules/eslint/bin/eslint.js .",
     "smoke:startup": "bash scripts/run-node-abi127.sh scripts/smoke-startup.js",
     "smoke:provider": "bash scripts/run-node-abi127.sh scripts/smoke-provider-routing.js",
     "smoke:security-latency": "bash scripts/run-node-abi127.sh scripts/smoke-security-latency.js"
@@ -31,6 +32,8 @@
   "devDependencies": {
     "csso": "^5.0.5",
     "esbuild": "^0.28.0",
+    "eslint": "^9.39.4",
+    "globals": "^16.5.0",
     "jsdom": "^26.1.0"
   }
 }

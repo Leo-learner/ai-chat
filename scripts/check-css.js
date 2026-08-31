@@ -57,5 +57,26 @@ if (inComment) throw new Error('CSS has an unclosed comment');
 if (inString) throw new Error('CSS has an unclosed string');
 if (balance !== 0) throw new Error(`CSS brace balance is ${balance}, expected 0`);
 
+if (/!important\b/i.test(css)) throw new Error('CSS must not use !important');
+if (/#dialogueApp|#chatView|body\.selected-ui\.server-chat-only/.test(css)) {
+  throw new Error('Legacy high-specificity production selectors returned');
+}
+
+const selectorText = css
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .split('{')
+  .slice(0, -1)
+  .map(chunk => chunk.slice(chunk.lastIndexOf('}') + 1).trim())
+  .filter(selector => selector && !selector.startsWith('@'))
+  .join('\n');
+if (/(^|[\s>,+~])#[A-Za-z_][\w-]*/m.test(selectorText)) {
+  throw new Error('Component CSS must use classes instead of ID selectors');
+}
+
+const definitions = [...css.matchAll(/(--[\w-]+)\s*:/g)].map(match => match[1]);
+const references = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map(match => match[1]));
+const unused = [...new Set(definitions)].filter(name => !references.has(name) && name !== '--icon');
+if (unused.length) throw new Error(`Unused CSS variables: ${unused.join(', ')}`);
+
 console.log(`${name} ok`);
 }

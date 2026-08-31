@@ -6,7 +6,6 @@ export function createSidebarController({
   defaultChatModel,
   normalizeChatModel,
   escapeHtml,
-  escapeAttr,
   toast,
   appConfirm,
   appPrompt,

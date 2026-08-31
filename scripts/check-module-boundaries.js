@@ -10,7 +10,10 @@ for (const name of backendModules) {
   if (!fs.existsSync(path.join(root, file))) throw new Error(`Missing backend module: ${file}`);
 }
 
-const frontendModules = ['state', 'api', 'message-renderer', 'sidebar'];
+const frontendModules = [
+  'state', 'api', 'message-renderer', 'sidebar', 'chat-stream',
+  'ui-controller', 'chat-controller', 'auth-controller', 'settings-controller',
+];
 for (const name of frontendModules) {
   const file = `public/modules/${name}.mjs`;
   if (!fs.existsSync(path.join(root, file))) throw new Error(`Missing frontend module: ${file}`);
@@ -44,10 +47,17 @@ if (/routes\/(?:control|finder)|mac-controller|CONTROL_AUTO_START|NGROK_/.test(s
 }
 
 const app = read('public/app.mjs');
+const frontendGraph = [app, ...frontendModules.map(name => read(`public/modules/${name}.mjs`))].join('\n');
 for (const name of frontendModules) {
-  if (!app.includes(`./modules/${name}.mjs`)) throw new Error(`app.mjs does not import ${name}`);
+  if (!frontendGraph.includes(`./modules/${name}.mjs`) && !frontendGraph.includes(`./${name}.mjs`)) {
+    throw new Error(`Frontend module is not composed: ${name}`);
+  }
 }
-if (/^const state\s*=|^const API\s*=\s*\{|^function createMessageElement|^async function loadChats/m.test(app)) {
+for (const name of ['state', 'api', 'message-renderer', 'ui-controller', 'chat-controller', 'auth-controller', 'settings-controller']) {
+  if (!app.includes(`./modules/${name}.mjs`)) throw new Error(`app.mjs does not directly compose ${name}`);
+}
+if (app.split('\n').length > 500) throw new Error('app.mjs must remain a bootstrap under 500 lines');
+if (/^const state\s*=|^const API\s*=\s*\{|^function createMessageElement|^async function loadChats|^async function sendPrompt|^function initAuth|^function openSettings/m.test(app)) {
   throw new Error('app.mjs still owns an extracted frontend domain');
 }
 

@@ -47,3 +47,24 @@ test('message rendering removes executable HTML, event handlers, and unsafe URLs
   assert.equal(safeLink?.target, '_blank');
   assert.match(safeLink?.rel || '', /noopener/);
 });
+
+test('external markdown images require an explicit click before loading', () => {
+  const payload = [
+    '![课程图](https://images.example.org/photo.png)',
+    '![站内图](/local.png)',
+  ].join('\n\n');
+  const message = renderer.createMessageElement({ id: 'image-message', role: 'assistant', content: payload });
+  document.body.replaceChildren(message);
+
+  const placeholder = message.querySelector('.remote-image-placeholder');
+  assert.ok(placeholder);
+  assert.equal(message.querySelector('img[src^="https://images.example.org"]'), null);
+  assert.match(placeholder.textContent, /images\.example\.org/);
+  assert.equal(message.querySelector('img[src="https://chat.example.test/local.png"]')?.alt, '站内图');
+
+  placeholder.click();
+  const remote = message.querySelector('img[src="https://images.example.org/photo.png"]');
+  assert.ok(remote);
+  assert.equal(remote.referrerPolicy, 'no-referrer');
+  assert.equal(remote.loading, 'lazy');
+});

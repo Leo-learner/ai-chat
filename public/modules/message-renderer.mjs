@@ -49,6 +49,29 @@ function sanitizeMarkdownUrl(value, kind = 'link') {
   return '';
 }
 
+function createRemoteImagePlaceholder(src, alt = '') {
+  const button = document.createElement('button');
+  const hostname = new URL(src).hostname.replace(/^www\./, '');
+  button.type = 'button';
+  button.className = 'remote-image-placeholder';
+  button.dataset.remoteImageSrc = src;
+  button.dataset.remoteImageAlt = alt;
+  button.setAttribute('aria-label', `加载来自 ${hostname} 的图片`);
+
+  const copy = document.createElement('span');
+  copy.className = 'remote-image-copy';
+  const label = document.createElement('strong');
+  label.textContent = alt || '外部图片';
+  const source = document.createElement('span');
+  source.textContent = hostname;
+  const action = document.createElement('span');
+  action.className = 'remote-image-action';
+  action.textContent = '加载图片';
+  copy.append(label, source);
+  button.append(copy, action);
+  return button;
+}
+
 function sanitizeMarkdownElement(element) {
   for (const child of Array.from(element.childNodes)) {
     if (child.nodeType === Node.COMMENT_NODE) {
@@ -87,6 +110,11 @@ function sanitizeMarkdownElement(element) {
       const src = sanitizeMarkdownUrl(child.getAttribute('src'), 'image');
       if (!src) {
         child.replaceWith(document.createTextNode(child.getAttribute('alt') || ''));
+        continue;
+      }
+      const parsed = new URL(src, window.location.origin);
+      if (parsed.protocol === 'https:' && parsed.origin !== window.location.origin) {
+        child.replaceWith(createRemoteImagePlaceholder(src, child.getAttribute('alt') || ''));
         continue;
       }
       child.setAttribute('src', src);
@@ -192,6 +220,21 @@ function enhanceCodeBlock(pre, block) {
 
 function enhanceMessageContent(root) {
   if (!root) return;
+  root.querySelectorAll('.remote-image-placeholder[data-remote-image-src]').forEach(button => {
+    if (button.dataset.remoteImageBound === 'true') return;
+    button.dataset.remoteImageBound = 'true';
+    button.addEventListener('click', () => {
+      const src = sanitizeMarkdownUrl(button.dataset.remoteImageSrc, 'image');
+      if (!src) return;
+      const image = document.createElement('img');
+      image.src = src;
+      image.alt = button.dataset.remoteImageAlt || '';
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.referrerPolicy = 'no-referrer';
+      button.replaceWith(image);
+    }, { once: true });
+  });
   root.querySelectorAll('pre code').forEach(block => {
     const language = getCodeBlockLanguage(block);
     if (window.hljs && !block.dataset.highlighted) {
