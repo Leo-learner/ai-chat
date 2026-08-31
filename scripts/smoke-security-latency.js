@@ -96,7 +96,7 @@ async function main() {
       PORT: String(appPort),
       HOST: '127.0.0.1',
       NODE_ENV: 'production',
-      SERVE_DIST: '0',
+      SERVE_DIST: '1',
       RATE_LIMIT_DISABLED: 'true',
       DB_PATH: dbPath,
       JWT_SECRET: 'smoke-only-secret-with-more-than-32-characters',

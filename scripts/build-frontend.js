@@ -46,6 +46,18 @@ for (const name of fs.readdirSync(publicDir)) {
 }
 fs.cpSync(path.join(publicDir, 'vendor'), path.join(distDir, 'vendor'), { recursive: true });
 
+const hashFile = name => createHash('sha256')
+  .update(fs.readFileSync(path.join(distDir, name)))
+  .digest('hex');
+const manifest = {
+  assetVersion,
+  files: Object.fromEntries(['index.html', 'app.min.js', 'style.min.css'].map(name => [name, {
+    bytes: fs.statSync(path.join(distDir, name)).size,
+    sha256: hashFile(name),
+  }])),
+};
+fs.writeFileSync(path.join(distDir, 'asset-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+
 const moduleDir = path.join(publicDir, 'modules');
 const jsSourceBytes = fs.statSync(path.join(publicDir, 'app.mjs')).size
   + fs.readdirSync(moduleDir)

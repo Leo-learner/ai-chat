@@ -81,6 +81,25 @@ function createProviderServer() {
         return;
       }
 
+      if (prompt === 'never-respond') {
+        return;
+      }
+
+      if (prompt === 'idle-stall') {
+        writeContent('首段');
+        return;
+      }
+
+      if (prompt === 'periodic-total') {
+        const timer = setInterval(() => writeContent('片'), 50);
+        pendingTimers.add(timer);
+        res.once('close', () => {
+          clearInterval(timer);
+          pendingTimers.delete(timer);
+        });
+        return;
+      }
+
       if (prompt === 'original-question') {
         writeContent(callNumber === 1 ? '旧答案' : '新答案');
         finish();
@@ -103,7 +122,11 @@ function createProviderServer() {
   };
 }
 
-async function startAppFixture({ rateLimitDisabled = true, authRateLimitMax = 30 } = {}) {
+async function startAppFixture({
+  rateLimitDisabled = true,
+  authRateLimitMax = 30,
+  modelTimeouts = {},
+} = {}) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-chat-core-test-'));
   const dbPath = path.join(tempRoot, 'chat.db');
   const logs = [];
@@ -130,6 +153,9 @@ async function startAppFixture({ rateLimitDisabled = true, authRateLimitMax = 30
       OPENROUTER_API_KEY: 'core-test-key',
       OPENROUTER_BASE_URL: `http://127.0.0.1:${providerPort}/api/v1`,
       DEFAULT_CHAT_MODEL: 'openrouter/free',
+      MODEL_FIRST_BYTE_TIMEOUT_MS: String(modelTimeouts.firstByteMs || 1000),
+      MODEL_STREAM_IDLE_TIMEOUT_MS: String(modelTimeouts.idleMs || 1000),
+      MODEL_TOTAL_TIMEOUT_MS: String(modelTimeouts.totalMs || 5000),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

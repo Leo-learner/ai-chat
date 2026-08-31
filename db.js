@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { runMigrations } = require('./lib/migrations');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'chat.db');
 
@@ -14,52 +15,7 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 // ── Migration system ─────────────────────────────────────
-db.exec(`
-  CREATE TABLE IF NOT EXISTS schema_migrations (
-    id          INTEGER PRIMARY KEY,
-    name        TEXT NOT NULL,
-    applied_at  TEXT DEFAULT (datetime('now'))
-  );
-`);
-
-function runMigrations() {
-  const migrationsDir = path.join(__dirname, 'db', 'migrations');
-  const applied = new Set(
-    db.prepare('SELECT id FROM schema_migrations ORDER BY id').all().map(r => r.id)
-  );
-
-  if (!fs.existsSync(migrationsDir)) return;
-
-  const files = fs.readdirSync(migrationsDir)
-    .filter(f => /^\d+_.*\.sql$/.test(f))
-    .sort((a, b) => {
-      const numA = parseInt(a.split('_')[0], 10);
-      const numB = parseInt(b.split('_')[0], 10);
-      return numA - numB;
-    });
-
-  for (const file of files) {
-    const migrationId = parseInt(file.split('_')[0], 10);
-    if (applied.has(migrationId)) continue;
-
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf-8');
-    try {
-      db.exec(sql);
-      db.prepare('INSERT INTO schema_migrations (id, name) VALUES (?, ?)').run(migrationId, file);
-    } catch (err) {
-      // If the migration is a no-op (e.g., column/table already exists from a
-      // prior ensureColumn call), record it as applied anyway
-      if (err.message.includes('duplicate column') ||
-          err.message.includes('already exists')) {
-        db.prepare('INSERT INTO schema_migrations (id, name) VALUES (?, ?)').run(migrationId, file);
-        continue;
-      }
-      throw err;
-    }
-  }
-}
-
-runMigrations();
+runMigrations(db, path.join(__dirname, 'db', 'migrations'));
 
 // ── User queries ────────────────────────────────────────
 const userQueries = {

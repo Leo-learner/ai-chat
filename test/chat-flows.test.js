@@ -110,3 +110,30 @@ test('regenerate replaces the selected assistant answer without duplicating the 
   assert.equal(stored.some(message => message.id === firstDone.messageId), false);
   assert.equal(fixture.provider.callsByPrompt.get('original-question'), 2);
 });
+
+for (const scenario of [
+  { prompt: 'never-respond', code: 'MODEL_FIRST_BYTE_TIMEOUT' },
+  { prompt: 'idle-stall', code: 'MODEL_STREAM_IDLE_TIMEOUT' },
+  { prompt: 'periodic-total', code: 'MODEL_TOTAL_TIMEOUT' },
+]) {
+  test(`${scenario.code} ends the stream without persisting a partial assistant answer`, async () => {
+    await fixture.close();
+    fixture = await startAppFixture({
+      modelTimeouts: { firstByteMs: 120, idleMs: 120, totalMs: 1000 },
+    });
+    const registered = await jsonRequest(fixture.baseUrl, '/api/auth/register', {
+      method: 'POST',
+      body: { username: 'flow-user', email: 'flow@example.test', password: 'strong-password' },
+    });
+    token = registered.payload.token;
+
+    const chat = await createChat(scenario.code);
+    const response = await send(chat.id, { content: scenario.prompt });
+    const events = parseSse(await response.text());
+    assert.equal(events.at(-1)?.type, 'error');
+    assert.equal(events.at(-1)?.code, scenario.code);
+
+    const stored = await messages(chat.id);
+    assert.deepEqual(stored.map(message => message.role), ['user']);
+  });
+}

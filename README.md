@@ -143,6 +143,13 @@ OPENROUTER_API_KEY=<your-key>
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 DEFAULT_CHAT_MODEL=openrouter/free
 DB_PATH=/opt/apps/ai-chat/data/chat.db
+JSON_BODY_LIMIT=256kb
+MAX_MESSAGE_CHARS=32000
+MAX_SYSTEM_PROMPT_CHARS=16000
+MAX_CHAT_TITLE_CHARS=80
+MODEL_FIRST_BYTE_TIMEOUT_MS=30000
+MODEL_STREAM_IDLE_TIMEOUT_MS=45000
+MODEL_TOTAL_TIMEOUT_MS=300000
 EOF
 chmod 600 .env
 
@@ -170,24 +177,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable ai-chat
 sudo systemctl start ai-chat
 
-# 5. Nginx 反向代理 (aichat.dkz12345.com)
-sudo tee /etc/nginx/sites-available/aichat.dkz12345.com << 'NGX'
-server {
-    listen 80;
-    server_name aichat.dkz12345.com;
-    client_max_body_size 512k;
-    location / {
-        proxy_pass http://127.0.0.1:3200;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-NGX
+# 5. 安装仓库内经过版本控制的 Nginx 配置
+sudo cp deploy/nginx/aichat.dkz12345.com.conf /etc/nginx/sites-available/aichat.dkz12345.com
 
 sudo ln -sf /etc/nginx/sites-available/aichat.dkz12345.com /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
@@ -220,3 +211,5 @@ sudo systemctl restart ai-chat
 - `.env` 文件权限必须为 `600`
 - API Key 不通过前端传输，所有模型调用走后端代理
 - systemd 服务启用 `NoNewPrivileges=true`、`PrivateTmp=true`
+- CSP、frame 限制等响应安全头由应用统一发送，Nginx 不重复添加
+- 生产环境必须先运行 `npm run build`，且不得设置 `SERVE_DIST=0`

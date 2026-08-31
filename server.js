@@ -7,8 +7,9 @@ const cors = require('cors');
 const { v4: uuid } = require('uuid');
 const path = require('path');
 const fs = require('fs');
+const { readIntegerEnv } = require('./lib/validation');
+const { validateDist } = require('./lib/static-assets');
 
-const { db, DB_PATH, userQueries, chatQueries, messageQueries } = require('./db');
 const { signToken, authRequired } = require('./auth');
 const { DEFAULT_CHAT_MODEL, getAllModels, normalizeChatModel, streamChat } = require('./providers');
 const { createLogger, createRootLogger } = require('./lib/logger');
@@ -19,9 +20,15 @@ const HOST = process.env.HOST || '127.0.0.1';
 const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const rootLogger = createRootLogger();
-const MAX_MESSAGE_CHARS = Number(process.env.MAX_MESSAGE_CHARS || 32000);
-const MAX_SYSTEM_PROMPT_CHARS = Number(process.env.MAX_SYSTEM_PROMPT_CHARS || 16000);
-const MAX_CHAT_TITLE_CHARS = Number(process.env.MAX_CHAT_TITLE_CHARS || 80);
+const MAX_MESSAGE_CHARS = readIntegerEnv('MAX_MESSAGE_CHARS', 32000, { min: 1, max: 200000 });
+const MAX_SYSTEM_PROMPT_CHARS = readIntegerEnv('MAX_SYSTEM_PROMPT_CHARS', 16000, { min: 1, max: 100000 });
+const MAX_CHAT_TITLE_CHARS = readIntegerEnv('MAX_CHAT_TITLE_CHARS', 80, { min: 1, max: 500 });
+const MODEL_TIMEOUTS = {
+  firstByteMs: readIntegerEnv('MODEL_FIRST_BYTE_TIMEOUT_MS', 30000, { min: 100, max: 300000 }),
+  idleMs: readIntegerEnv('MODEL_STREAM_IDLE_TIMEOUT_MS', 45000, { min: 100, max: 300000 }),
+  totalMs: readIntegerEnv('MODEL_TOTAL_TIMEOUT_MS', 300000, { min: 1000, max: 1800000 }),
+};
+const { db, DB_PATH, userQueries, chatQueries, messageQueries } = require('./db');
 
 // ── Middleware ──────────────────────────────────────────
 function assertRuntimeConfig() {
@@ -48,6 +55,7 @@ function allowedOrigins() {
 }
 
 const corsAllowList = allowedOrigins();
+app.disable('x-powered-by');
 // Production traffic is forwarded by a loopback reverse proxy. Trusting only
 // loopback keeps req.ip accurate for rate limiting without accepting arbitrary
 // client supplied X-Forwarded-For values.
@@ -60,7 +68,7 @@ app.use(cors({
 }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
@@ -70,7 +78,7 @@ app.use((req, res, next) => {
     "default-src 'self'",
     "base-uri 'none'",
     "object-src 'none'",
-    "frame-ancestors 'self'",
+    "frame-ancestors 'none'",
     "form-action 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
@@ -88,14 +96,19 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || (IS_PRODUCTION ? '256kb' : '1mb') }));
-// Serve built assets first (dist/), fall back to raw public/. Set SERVE_DIST=0 for dev.
+// Production serves only verified build artifacts. Raw modules are available
+// solely in local development with SERVE_DIST=0.
 const rawPublicPath = path.join(__dirname, 'public');
 const distPath = path.join(rawPublicPath, 'dist');
-const shouldServeDist = process.env.SERVE_DIST !== '0' && fs.existsSync(distPath);
-app.use(express.static(shouldServeDist ? distPath : rawPublicPath));
-if (shouldServeDist) {
-  app.use(express.static(rawPublicPath));
+if (IS_PRODUCTION && process.env.SERVE_DIST === '0') {
+  throw new Error('SERVE_DIST=0 is not allowed in production');
 }
+const shouldServeDist = process.env.SERVE_DIST !== '0' && fs.existsSync(distPath);
+if (IS_PRODUCTION && !shouldServeDist) {
+  throw new Error('Production frontend build is missing');
+}
+if (shouldServeDist) validateDist(distPath);
+app.use(express.static(shouldServeDist ? distPath : rawPublicPath));
 
 const { createRateLimiter } = require('./lib/rate-limiter');
 
@@ -146,6 +159,7 @@ app.use('/api', createStreamRouter({
   memoryService: memoryModule.service,
   searchService: searchModule.service,
   maxMessageChars: MAX_MESSAGE_CHARS,
+  modelTimeouts: MODEL_TIMEOUTS,
 }));
 
 // Keep explicit denials for legacy endpoints so old clients fail closed.
@@ -155,9 +169,15 @@ app.use('/api/control', (req, res) => {
 app.use('/api/finder', (req, res) => {
   res.status(403).json({ error: 'Finder is unavailable on the server build.' });
 });
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
+});
 
 // ── SPA fallback ────────────────────────────────────────
 app.get('*', (req, res) => {
+  if (path.extname(req.path) || !req.accepts('html')) {
+    return res.status(404).type('text').send('Not found');
+  }
   res.sendFile(path.join(shouldServeDist ? distPath : rawPublicPath, 'index.html'));
 });
 

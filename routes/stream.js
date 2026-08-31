@@ -1,6 +1,7 @@
 const express = require('express');
 const { v4: uuid } = require('uuid');
 const { isBoundedString } = require('../lib/validation');
+const { createModelStreamWatchdog } = require('../lib/timeout');
 const { CONTEXT_CONFIG, buildContextMessages, isLikelyContextLimitError } = require('../lib/chat-context');
 
 module.exports = function createStreamRouter({
@@ -15,6 +16,7 @@ module.exports = function createStreamRouter({
   memoryService,
   searchService,
   maxMessageChars,
+  modelTimeouts,
 }) {
   const router = express.Router();
   const DEFAULT_CHAT_MODEL = defaultChatModel;
@@ -141,6 +143,7 @@ router.post('/chats/:id/messages', authRequired, chatLimiter, async (req, res) =
   let assistantMsgId = uuid();
   let firstChunkLogged = false;
   let webSearchContextInfo = { context: '', count: 0, queryChars: 0, used: false, results: [] };
+  let modelWatchdog = null;
 
   const persistAssistant = db.transaction((chatId, replaceId, msgId, contentText, tokens) => {
     if (replaceId) {
@@ -196,6 +199,8 @@ router.post('/chats/:id/messages', authRequired, chatLimiter, async (req, res) =
       }
     }
 
+    modelWatchdog = createModelStreamWatchdog(abortController.signal, modelTimeouts);
+
     for (let attemptIndex = 0; attemptIndex < contextPlans.length; attemptIndex++) {
       const plan = contextPlans[attemptIndex];
       const contextInfo = buildContextMessages({
@@ -235,10 +240,12 @@ router.post('/chats/:id/messages', authRequired, chatLimiter, async (req, res) =
       assistantMsgId = uuid();
 
       try {
-        const stream = streamChat(apiMessages, useModel, { signal: abortController.signal });
+        modelWatchdog.beginAttempt();
+        const stream = streamChat(apiMessages, useModel, { signal: modelWatchdog.signal });
 
         for await (const chunk of stream) {
-          if (abortController.signal.aborted) break;
+          if (modelWatchdog.signal.aborted) break;
+          modelWatchdog.noteChunk();
 
           if (chunk.type === 'content') {
             if (!firstChunkLogged) {
@@ -255,11 +262,14 @@ router.post('/chats/:id/messages', authRequired, chatLimiter, async (req, res) =
           }
         }
 
-        if (abortController.signal.aborted) {
+        modelWatchdog.endAttempt();
+        if (modelWatchdog.signal.aborted) {
+          if (modelWatchdog.getTimeoutCode()) throw modelWatchdog.signal.reason;
           if (!res.writableEnded) res.end();
           return;
         }
 
+        modelWatchdog.dispose();
         persistAssistant(chat.id, regenerate ? replaceAssistantMessageId : null, assistantMsgId, fullContent, totalTokens);
 
         res.write(`data: ${JSON.stringify({ type: 'done', messageId: assistantMsgId, userMessageId: userMsgId, tokens: totalTokens })}\n\n`);
@@ -268,6 +278,8 @@ router.post('/chats/:id/messages', authRequired, chatLimiter, async (req, res) =
         completed = true;
         break;
       } catch (err) {
+        modelWatchdog.endAttempt();
+        if (modelWatchdog.getTimeoutCode()) throw modelWatchdog.signal.reason || err;
         if (abortController.signal.aborted || err?.name === 'AbortError') {
           if (!res.writableEnded) res.end();
           return;
@@ -287,6 +299,19 @@ router.post('/chats/:id/messages', authRequired, chatLimiter, async (req, res) =
       res.end();
     }
   } catch (err) {
+    const timeoutCode = modelWatchdog?.getTimeoutCode();
+    if (timeoutCode) {
+      req.log.warn(`Model stream timed out chat=${chat.id} code=${timeoutCode}`);
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({
+          type: 'error',
+          code: timeoutCode,
+          error: 'AI 服务响应超时，请重试',
+        })}\n\n`);
+        res.end();
+      }
+      return;
+    }
     if (abortController.signal.aborted || err?.name === 'AbortError') {
       if (!res.writableEnded) res.end();
       return;
@@ -301,6 +326,7 @@ router.post('/chats/:id/messages', authRequired, chatLimiter, async (req, res) =
       res.end();
     }
   } finally {
+    modelWatchdog?.dispose();
     req.off?.('aborted', abortConnection);
     res.off?.('close', abortConnection);
   }
