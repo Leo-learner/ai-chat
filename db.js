@@ -73,7 +73,8 @@ const userQueries = {
   setRoleByUsername: db.prepare(`UPDATE users SET role = ?, updated_at = datetime('now') WHERE username = ?`),
 };
 
-const configuredAdminUsername = process.env.ADMIN_USERNAME || 'Leo';
+// Only an explicitly configured name is promoted; registration refuses it.
+const configuredAdminUsername = String(process.env.ADMIN_USERNAME || '').trim();
 if (configuredAdminUsername) {
   userQueries.setRoleByUsername.run('admin', configuredAdminUsername);
 }

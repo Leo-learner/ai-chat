@@ -19,7 +19,9 @@ const iconv = require('iconv-lite');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'Leo';
+// No default: an admin name that is public (it is in this repository) could be
+// claimed by whoever registers it first. See the register route below.
+const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || '').trim();
 const DEFAULT_JWT_SECRET = 'dev-secret-change-me';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const rootLogger = createRootLogger();
@@ -555,6 +557,11 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     }
     if (username.length < 2 || username.length > 30) {
       return res.status(400).json({ error: 'Username must be 2-30 characters' });
+    }
+    // db.js promotes ADMIN_USERNAME to admin at startup, so the web form must
+    // never be able to create that account.
+    if (ADMIN_USERNAME && String(username).toLowerCase() === ADMIN_USERNAME.toLowerCase()) {
+      return res.status(403).json({ error: 'This username is reserved' });
     }
 
     const existingUser = userQueries.findByUsername.get(username);
