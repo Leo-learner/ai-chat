@@ -356,8 +356,7 @@ html[data-theme="light"] {
 .icon-close { --icon: url('/vendor/lucide/x.svg'); }
 
 /* Fixed shell, a single scrolling conversation region. */
-:where(.server-chat-only),
-:where(.server-chat-only).active {
+:where(.server-chat-only) {
   position: fixed;
   inset: 0;
   width: 100%;
@@ -366,6 +365,9 @@ html[data-theme="light"] {
   overflow: hidden;
   background: var(--dialogue-bg);
 }
+/* The view sits between the fixed body and the shell. Without a definite
+   height here, the shell's percentage heights collapse to content height. */
+:where(.server-chat-only) .view { height: 100%; }
 :where(.server-chat-only) .shell {
   display: grid;
   grid-template-columns: var(--dialogue-rail) minmax(0, 1fr);
