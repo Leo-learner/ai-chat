@@ -36,7 +36,7 @@ async function waitFor(predicate, message, timeoutMs = 3000) {
   throw new Error(message);
 }
 
-test('frontend controllers send, stop, and regenerate through the real app entry', async () => {
+test('frontend controllers send, stop, and regenerate through the real app entry', async t => {
   const html = fs.readFileSync(path.join(projectRoot, 'public', 'index.html'), 'utf8');
   const dom = new JSDOM(html, { url: 'https://chat-controller.example.test/' });
   const globalNames = ['window', 'document', 'Node', 'DOMException', 'localStorage', 'navigator', 'marked', 'fetch', 'requestAnimationFrame'];
@@ -72,6 +72,11 @@ test('frontend controllers send, stop, and regenerate through the real app entry
       const chat = { id: 'c1', title: 'New Chat', model: 'openrouter/free' };
       if (!chats.length) chats.push(chat);
       return json({ chat }, 201);
+    }
+    if (pathname === '/api/chats/c1' && options.method === 'DELETE') {
+      chats.splice(0);
+      messages.splice(0);
+      return json({ success: true });
     }
     if (pathname === '/api/chats/c1/messages' && (!options.method || options.method === 'GET')) {
       return json({ messages });
@@ -137,6 +142,41 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     input.value = '未发送的草稿';
     input.dispatchEvent(new window.Event('input', { bubbles: true }));
     assert.equal(localStorage.getItem('ai_chat_draft:u1:c1'), '未发送的草稿');
+
+    // Runs just before logout because it ends by deleting the current chat.
+    await t.test('back-to-latest button follows the distance from the latest message', async () => {
+      // Let the regenerate flow's trailing re-render and scroll settle first.
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const list = document.getElementById('messagesContainer');
+      const button = document.getElementById('scrollToBottomBtn');
+      const shown = () => !button.classList.contains('hidden');
+      // jsdom has no layout, so give the list a long conversation's geometry.
+      Object.defineProperties(list, {
+        scrollHeight: { value: 2249, configurable: true },
+        clientHeight: { value: 666, configurable: true },
+      });
+      const scrollListTo = top => {
+        list.scrollTop = top;
+        list.dispatchEvent(new window.Event('scroll'));
+      };
+
+      scrollListTo(600);
+      assert.equal(shown(), true, 'should show when scrolled far above the latest message');
+      scrollListTo(2249 - 666 - 40);
+      assert.equal(shown(), false, 'should stay hidden within the near-bottom threshold');
+
+      scrollListTo(600);
+      button.click();
+      await waitFor(() => !shown(), 'did not hide after returning to the latest message');
+      assert.ok(list.scrollTop >= list.scrollHeight - list.clientHeight, 'did not scroll to the latest message');
+
+      scrollListTo(600);
+      document.querySelector('.chat-item[data-chat-id="c1"] .chat-item-delete').click();
+      (await waitFor(() => document.querySelector('[data-dialog-confirm]'), 'delete confirmation did not open')).click();
+      await waitFor(() => !document.getElementById('emptyState').classList.contains('hidden'), 'empty state did not return');
+      assert.equal(shown(), false, 'should hide once the empty state replaces the message list');
+    });
+
     document.getElementById('logoutBtn').click();
     assert.deepEqual(Object.keys(localStorage).filter(key => key.startsWith('ai_chat_draft:')), []);
   } finally {

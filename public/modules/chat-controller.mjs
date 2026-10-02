@@ -79,6 +79,7 @@ export function createChatController({ state, dom, API, allowedChatModels, defau
     appPrompt,
     openChat,
     closeSidebarOnMobile,
+    syncScrollToBottomButton,
   });
   const {
     batchDeleteSelected,
@@ -169,8 +170,9 @@ export function createChatController({ state, dom, API, allowedChatModels, defau
   function syncScrollToBottomButton() {
     if (!dom.scrollToBottomBtn) return;
     const el = dom.messagesContainer;
-    const activeTab = document.getElementById('tabNav')?.querySelector('.tab-btn.active')?.dataset.tab;
-    if (!el || activeTab !== 'chat') {
+    // Only an on-screen message list can be scrolled away from the latest
+    // message: not while the auth view or the empty state is showing.
+    if (!el || !dom.chatView?.classList.contains('active') || el.classList.contains('hidden')) {
       dom.scrollToBottomBtn.classList.add('hidden');
       return;
     }

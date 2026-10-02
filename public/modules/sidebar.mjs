@@ -11,6 +11,7 @@ export function createSidebarController({
   appPrompt,
   openChat,
   closeSidebarOnMobile,
+  syncScrollToBottomButton,
 }) {
   const ALLOWED_CHAT_MODELS = allowedChatModels;
   const DEFAULT_CHAT_MODEL = defaultChatModel;
@@ -272,6 +273,7 @@ function showEmptyState() {
   dom.emptyState.classList.remove('hidden');
   dom.messagesContainer.classList.add('hidden');
   dom.messagesContainer.innerHTML = '';
+  syncScrollToBottomButton();
 }
 
   return {
