@@ -4,8 +4,10 @@ export function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// For quoted attribute values. escapeHtml() is only safe between tags: it
+// leaves quotes alone, so it must never be used inside an attribute.
 export function escapeAttr(value) {
-  return String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '&quot;');
+  return String(value ?? '').replace(/[&"'<>]/g, ch => `&#${ch.charCodeAt(0)};`);
 }
 
 const MARKDOWN_ALLOWED_TAGS = new Set([

@@ -4,29 +4,39 @@ const { isBoundedString } = require('../lib/validation');
 
 module.exports = function createChatRouter({
   authRequired,
+  chatReadLimiter,
+  chatWriteLimiter,
   chatQueries,
   messageQueries,
   normalizeChatModel,
   maxChatTitleChars,
   maxSystemPromptChars,
+  maxChatsPerUser,
 }) {
   const router = express.Router();
   const MAX_CHAT_TITLE_CHARS = maxChatTitleChars;
   const MAX_SYSTEM_PROMPT_CHARS = maxSystemPromptChars;
+  const MAX_CHATS_PER_USER = maxChatsPerUser;
+  // The list never needs more rows than a user may own; the floor keeps
+  // accounts created before the cap fully visible.
+  const CHAT_LIST_LIMIT = Math.max(MAX_CHATS_PER_USER, 1000);
 
   function normalizeChatForResponse(chat) {
     if (!chat) return chat;
     return { ...chat, model: normalizeChatModel(chat.model) };
   }
 
-router.get('/chats', authRequired, (req, res) => {
-  const chats = chatQueries.findByUser.all(req.user.id).map(normalizeChatForResponse);
+router.get('/chats', authRequired, chatReadLimiter, (req, res) => {
+  const chats = chatQueries.findByUser.all(req.user.id, CHAT_LIST_LIMIT).map(normalizeChatForResponse);
   res.json({ chats });
 });
 
 // POST /api/chats
-router.post('/chats', authRequired, (req, res) => {
+router.post('/chats', authRequired, chatWriteLimiter, (req, res) => {
   try {
+    if (req.user.role !== 'admin' && chatQueries.countByUser.get(req.user.id).count >= MAX_CHATS_PER_USER) {
+      return res.status(409).json({ error: `会话数量已达上限（${MAX_CHATS_PER_USER} 个），请先删除不需要的会话` });
+    }
     const { title, model, system_prompt } = req.body || {};
     if (title !== undefined && !isBoundedString(title, MAX_CHAT_TITLE_CHARS)) {
       return res.status(400).json({ error: `Chat title must be 1-${MAX_CHAT_TITLE_CHARS} characters` });
@@ -53,7 +63,7 @@ router.post('/chats', authRequired, (req, res) => {
 });
 
 // GET /api/chats/:id
-router.get('/chats/:id', authRequired, (req, res) => {
+router.get('/chats/:id', authRequired, chatReadLimiter, (req, res) => {
   const chat = chatQueries.findById.get(req.params.id);
   if (!chat || chat.user_id !== req.user.id) {
     return res.status(404).json({ error: 'Chat not found' });
@@ -62,7 +72,7 @@ router.get('/chats/:id', authRequired, (req, res) => {
 });
 
 // PATCH /api/chats/:id
-router.patch('/chats/:id', authRequired, (req, res) => {
+router.patch('/chats/:id', authRequired, chatWriteLimiter, (req, res) => {
   const chat = chatQueries.findById.get(req.params.id);
   if (!chat || chat.user_id !== req.user.id) {
     return res.status(404).json({ error: 'Chat not found' });
@@ -99,7 +109,7 @@ router.delete('/chats/:id', authRequired, (req, res) => {
 // ── Message Routes ──────────────────────────────────────
 
 // GET /api/chats/:id/messages
-router.get('/chats/:id/messages', authRequired, (req, res) => {
+router.get('/chats/:id/messages', authRequired, chatReadLimiter, (req, res) => {
   const chat = chatQueries.findById.get(req.params.id);
   if (!chat || chat.user_id !== req.user.id) {
     return res.status(404).json({ error: 'Chat not found' });

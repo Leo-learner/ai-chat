@@ -126,6 +126,7 @@ async function startAppFixture({
   rateLimitDisabled = true,
   authRateLimitMax = 30,
   modelTimeouts = {},
+  env = {},
 } = {}) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-chat-core-test-'));
   const dbPath = path.join(tempRoot, 'chat.db');
@@ -156,6 +157,8 @@ async function startAppFixture({
       MODEL_FIRST_BYTE_TIMEOUT_MS: String(modelTimeouts.firstByteMs || 1000),
       MODEL_STREAM_IDLE_TIMEOUT_MS: String(modelTimeouts.idleMs || 1000),
       MODEL_TOTAL_TIMEOUT_MS: String(modelTimeouts.totalMs || 5000),
+      REGISTRATION_MODE: 'open',
+      ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -178,10 +181,11 @@ async function startAppFixture({
   };
 }
 
-async function jsonRequest(baseUrl, pathname, { method = 'GET', token, body } = {}) {
+async function jsonRequest(baseUrl, pathname, { method = 'GET', token, body, headers = {} } = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     method,
     headers: {
+      ...headers,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },

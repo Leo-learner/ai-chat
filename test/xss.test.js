@@ -68,3 +68,39 @@ test('external markdown images require an explicit click before loading', () => 
   assert.equal(remote.referrerPolicy, 'no-referrer');
   assert.equal(remote.loading, 'lazy');
 });
+
+test('dialog fields keep user-controlled values inside their attributes', async () => {
+  const { createUiController } = await import('../public/modules/ui-controller.mjs');
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  global.requestAnimationFrame = callback => setTimeout(callback, 0);
+  const ui = createUiController({
+    state: { activeDialog: null },
+    dom: {},
+    themeChoices: ['system', 'light', 'dark'],
+    themePreferenceStorageKey: 'theme-test',
+    getStoredThemePreference: () => 'light',
+    escapeHtml: renderer.escapeHtml,
+    escapeAttr: renderer.escapeAttr,
+    getChatController: () => null,
+  });
+
+  const hostileTitle = 'x" autofocus onfocus="window.__xss = 5" style="position:fixed';
+  const pending = ui.appPrompt({
+    title: '重命名会话',
+    fields: [
+      { name: 'title', value: hostileTitle, placeholder: '"><img src=x>', required: true },
+      { name: 'password', label: '当前密码', type: 'password', required: true },
+    ],
+  });
+  const title = document.querySelector('[data-dialog-field="title"]');
+  assert.deepEqual([...title.attributes].map(attr => attr.name).sort(), ['class', 'data-dialog-field', 'placeholder', 'required', 'type', 'value']);
+  assert.equal(title.value, hostileTitle);
+  assert.equal(document.querySelector('.app-dialog img'), null);
+
+  const password = document.querySelector('[data-dialog-field="password"]');
+  assert.equal(password.type, 'password');
+  password.value = '  spaced secret  ';
+  document.querySelector('[data-dialog-confirm]').click();
+  assert.deepEqual(await pending, { title: hostileTitle, password: '  spaced secret  ' });
+  assert.equal(window.__xss, undefined);
+});

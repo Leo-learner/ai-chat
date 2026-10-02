@@ -53,6 +53,8 @@ button:disabled { cursor: not-allowed; }
 .input-group input:focus,
 .chat-search-input:focus { border-color: var(--dialogue-accent); }
 .error-msg { margin: 0; color: #d87575; font-size: 13px; }
+.message-error { color: #d87575; }
+.auth-note { margin: 18px 0 0; color: var(--dialogue-muted); font-size: 12px; line-height: 1.6; }
 
 /* Authentication */
 .auth-view {

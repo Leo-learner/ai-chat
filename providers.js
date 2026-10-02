@@ -31,9 +31,17 @@ function resolveEnvPlaceholders(value) {
   return value;
 }
 
+// providers.json and its env placeholders are resolved once per process:
+// model normalization runs per chat row, so re-reading the file there blocks
+// the event loop. Restart the service after editing either.
+let providerConfigs = null;
+
 function loadProviderConfigs() {
-  const raw = fs.readFileSync(path.join(__dirname, 'providers.json'), 'utf-8');
-  return JSON.parse(raw).map(resolveEnvPlaceholders);
+  if (!providerConfigs) {
+    const raw = fs.readFileSync(path.join(__dirname, 'providers.json'), 'utf-8');
+    providerConfigs = JSON.parse(raw).map(resolveEnvPlaceholders);
+  }
+  return providerConfigs;
 }
 
 function getAllowedChatModels() {

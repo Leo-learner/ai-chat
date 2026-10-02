@@ -98,7 +98,8 @@ export function createChatController({ state, dom, API, allowedChatModels, defau
   
   function getMessageElement(messageId) {
     if (!messageId) return null;
-    const safeId = String(messageId).replace(/"/g, '&quot;');
+    const id = String(messageId);
+    const safeId = window.CSS?.escape ? window.CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
     return dom.messagesContainer.querySelector(`.message[data-message-id="${safeId}"]`);
   }
   
@@ -194,8 +195,18 @@ export function createChatController({ state, dom, API, allowedChatModels, defau
     dom.messageInput.focus();
   }
   
+  // Drafts are scoped to the signed-in user so a shared browser never shows
+  // one account's unsent text to another.
   function chatDraftKey(chatId = state.currentChat?.id || 'new') {
-    return `${CHAT_DRAFT_STORAGE_PREFIX}${chatId || 'new'}`;
+    return `${CHAT_DRAFT_STORAGE_PREFIX}${state.user?.id || 'anon'}:${chatId || 'new'}`;
+  }
+
+  function clearInputDrafts() {
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith(CHAT_DRAFT_STORAGE_PREFIX)) localStorage.removeItem(key);
+      }
+    } catch {}
   }
   
   function saveInputDraft() {
@@ -529,7 +540,7 @@ export function createChatController({ state, dom, API, allowedChatModels, defau
         finalize = 'error';
         const target = streamContentEl || document.querySelector('#streamingMessage .message-content');
         if (target) {
-          target.innerHTML = `<span style="color:var(--danger)">Error: ${escapeHtml(err.message || 'Request failed')}</span>`;
+          target.innerHTML = `<span class="message-error">Error: ${escapeHtml(err.message || 'Request failed')}</span>`;
           target.classList.remove('streaming-cursor');
         }
       }
@@ -693,7 +704,7 @@ export function createChatController({ state, dom, API, allowedChatModels, defau
       restoreInputDraft(state.currentChat.id);
       closeSidebarOnMobile();
     } catch (err) {
-      toast('创建会话失败');
+      toast(err.message || '创建会话失败');
     }
   }
   
@@ -724,5 +735,5 @@ export function createChatController({ state, dom, API, allowedChatModels, defau
     }
   }
 
-  return { abortActiveRequest, batchDeleteSelected, copyMessageContent, enterBatchMode, exitBatchMode, loadChats, loadMessages, loadModels, newChat, openChat, renderChatList, renameChat, resizeComposer, restoreInputDraft, runMessageAction, saveInputDraft, scrollToBottom, sendMessage, setWebSearchEnabled, showEmptyState, syncScrollToBottomButton, updateSendButton };
+  return { abortActiveRequest, batchDeleteSelected, clearInputDrafts, copyMessageContent, enterBatchMode, exitBatchMode, loadChats, loadMessages, loadModels, newChat, openChat, renderChatList, renameChat, resizeComposer, restoreInputDraft, runMessageAction, saveInputDraft, scrollToBottom, sendMessage, setWebSearchEnabled, showEmptyState, syncScrollToBottomButton, updateSendButton };
 }

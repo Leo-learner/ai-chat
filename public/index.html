@@ -63,11 +63,16 @@
             </div>
             <div class="input-group">
               <label>密码</label>
-              <input type="password" id="regPass" placeholder="至少 6 位字符" autocomplete="new-password" minlength="6">
+              <input type="password" id="regPass" placeholder="至少 8 位字符" autocomplete="new-password" minlength="8">
+            </div>
+            <div id="regInviteGroup" class="input-group hidden">
+              <label>邀请码</label>
+              <input type="text" id="regInvite" placeholder="输入邀请码" autocomplete="off">
             </div>
             <button type="submit" class="btn btn-primary btn-full">创建账号</button>
             <p id="regError" class="error-msg hidden"></p>
           </form>
+          <p class="auth-note">对话内容会发送给第三方模型服务（OpenRouter 及其上游模型提供方）处理，可能被其记录。请勿输入密码、证件号等敏感信息。</p>
         </div>
       </div>
     </section>
@@ -140,7 +145,7 @@
               <button id="mobileSidebarBtn" class="icon-btn mobile-only mobile-sidebar-btn" type="button" title="历史会话" aria-label="历史会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-chat" aria-hidden="true"></span></button>
               <div class="main-title-copy" id="mainTitleCopy">
                 <h1 role="button" tabindex="0" title="重命名会话">新对话</h1>
-                <input id="chatTitleInput" class="chat-title-edit" type="text" maxlength="80" placeholder="会话标题…" aria-label="会话标题" style="display:none">
+                <input id="chatTitleInput" class="chat-title-edit" type="text" maxlength="80" placeholder="会话标题…" aria-label="会话标题" hidden>
                 <button id="titleHistoryBtn" class="icon-btn title-history" type="button" title="切换会话" aria-label="切换会话" aria-controls="sidebar" aria-expanded="false"><span class="ui-icon icon-chevron" aria-hidden="true"></span></button>
               </div>
             </div>
@@ -256,7 +261,7 @@
         <div class="settings-subtle">修改密码（不修改可留空）</div>
         <div class="input-group">
           <label for="settingsNewPassword">新密码</label>
-          <input type="password" id="settingsNewPassword" autocomplete="new-password" minlength="6" placeholder="至少 6 位，留空表示不修改">
+          <input type="password" id="settingsNewPassword" autocomplete="new-password" minlength="8" placeholder="至少 8 位，留空表示不修改">
         </div>
         <div class="input-group">
           <label for="settingsConfirmPassword">确认新密码</label>
@@ -278,6 +283,8 @@
       <section class="settings-section">
         <p class="settings-subtle">Enter 发送 · Shift+Enter 换行<br>AI 可能出错，重要信息请核对。</p>
         <button id="settingsLogoutBtn" class="btn btn-ghost btn-full" type="button">退出登录</button>
+        <button id="settingsLogoutAllBtn" class="btn btn-ghost btn-full" type="button">退出所有设备</button>
+        <button id="settingsDeleteAccountBtn" class="btn btn-danger btn-full" type="button">注销账号</button>
       </section>
     </div>
   </div>

@@ -47,7 +47,7 @@ export function normalizeChatModel(modelId) {
 
 export const dom = Object.fromEntries([
   'authView', 'chatView', 'loginForm', 'registerForm', 'loginError', 'regError',
-  'loginUser', 'loginPass', 'regUser', 'regEmail', 'regPass', 'logoutBtn',
+  'loginUser', 'loginPass', 'regUser', 'regEmail', 'regPass', 'regInvite', 'regInviteGroup', 'logoutBtn',
   'newChatBtn', 'mobileMoreBtn', 'mobileMoreMenu', 'mobileMoreBackdrop',
   'closeMobileMoreBtn', 'mobileNewChatBtn', 'mobileSidebarBtn', 'sidebarBackdrop',
   'chatList', 'chatSearchInput', 'chatSearchEmpty', 'batchSelectBtn',
@@ -58,6 +58,6 @@ export const dom = Object.fromEntries([
   'settingsBackdrop', 'settingsModal', 'closeSettingsBtn', 'settingsForm',
   'settingsUsername', 'settingsNewPassword', 'settingsConfirmPassword',
   'settingsCurrentPassword', 'settingsMessage', 'settingsSaveBtn',
-  'settingsLogoutBtn'
+  'settingsLogoutBtn', 'settingsLogoutAllBtn', 'settingsDeleteAccountBtn'
 ].map(id => [id, document.getElementById(id)]));
 dom.tabs = document.querySelectorAll('.auth-tab');

@@ -1,5 +1,5 @@
-export function createSettingsController({ state, dom, API, ui }) {
-  const { restoreFocus, setElementSuppressed, syncThemeControls, toast } = ui;
+export function createSettingsController({ state, dom, API, ui, logout }) {
+  const { appConfirm, appPrompt, restoreFocus, setElementSuppressed, syncThemeControls, toast } = ui;
 
   function setSettingsMessage(text, kind = '') {
     const el = dom.settingsMessage;
@@ -54,7 +54,7 @@ export function createSettingsController({ state, dom, API, ui }) {
     if (usernameChanged && (newUsername.length < 2 || newUsername.length > 30)) {
       return setSettingsMessage('用户名需为 2-30 个字符', 'error');
     }
-    if (wantsPassword && newPassword.length < 6) return setSettingsMessage('新密码至少 6 位字符', 'error');
+    if (wantsPassword && newPassword.length < 8) return setSettingsMessage('新密码至少 8 位字符', 'error');
     if (wantsPassword && newPassword !== confirmPassword) return setSettingsMessage('两次输入的新密码不一致', 'error');
     if (!currentPassword) return setSettingsMessage('请输入当前密码以确认修改', 'error');
   
@@ -92,6 +92,42 @@ export function createSettingsController({ state, dom, API, ui }) {
     }
   }
 
-  return { closeSettings, openSettings, submitSettings };
+  async function logoutAllDevices() {
+    const ok = await appConfirm({
+      title: '退出所有设备',
+      message: '包括当前设备在内，所有已登录的设备都需要重新登录。',
+      confirmText: '全部退出',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await API.post('/auth/logout-all', {});
+    } catch (err) {
+      return toast(err.message || '操作失败');
+    }
+    closeSettings();
+    logout();
+  }
+
+  async function deleteAccount() {
+    const result = await appPrompt({
+      title: '注销账号',
+      message: '将永久删除你的账号和全部会话，无法恢复。',
+      fields: [{ name: 'password', label: '当前密码', type: 'password', required: true }],
+      confirmText: '永久删除',
+      danger: true,
+    });
+    if (!result?.password) return;
+    try {
+      await API.post('/auth/delete-account', { currentPassword: result.password }, { authRedirect: false });
+    } catch (err) {
+      return toast(err.message || '注销失败');
+    }
+    closeSettings();
+    logout();
+    toast('账号已注销');
+  }
+
+  return { closeSettings, deleteAccount, logoutAllDevices, openSettings, submitSettings };
 }
 

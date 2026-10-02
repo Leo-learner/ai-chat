@@ -15,6 +15,7 @@ module.exports = function createStreamRouter({
   streamChat,
   memoryService,
   searchService,
+  usageLimits,
   maxMessageChars,
   modelTimeouts,
 }) {
@@ -68,7 +69,17 @@ router.post('/chats/:id/messages', authRequired, chatLimiter, async (req, res) =
     }
     promptContent = history[sourceIdx].content;
     contextHistory = history.slice(0, sourceIdx + 1);
-  } else {
+  }
+
+  // Quota and concurrency are checked after validation so rejected requests do
+  // not consume the daily budget. The lease is released when the response closes.
+  const lease = usageLimits.acquire(req.user);
+  if (lease.error) {
+    return res.status(lease.status).json({ error: lease.error });
+  }
+  res.once('close', lease.release);
+
+  if (!regenerate) {
     userMsgId = uuid();
     messageQueries.add.run(userMsgId, chat.id, 'user', promptContent, 0);
 

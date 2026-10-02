@@ -133,6 +133,12 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     original.querySelector('[data-action="regenerate"]').click();
     await waitFor(() => document.body.textContent.includes('新答案'), 'regenerated answer did not render');
     assert.equal(document.body.textContent.includes('原答案'), false);
+
+    input.value = '未发送的草稿';
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    assert.equal(localStorage.getItem('ai_chat_draft:u1:c1'), '未发送的草稿');
+    document.getElementById('logoutBtn').click();
+    assert.deepEqual(Object.keys(localStorage).filter(key => key.startsWith('ai_chat_draft:')), []);
   } finally {
     await new Promise(resolve => setTimeout(resolve, 250));
     dom.window.close();

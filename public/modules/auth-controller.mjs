@@ -1,6 +1,6 @@
 export function createAuthController({ state, dom, API, ui, chat }) {
   const { closeMobileMoreMenu, closeSidebarOnMobile, showView, syncResponsiveSidebarState, toast } = ui;
-  const { abortActiveRequest, loadChats, loadModels, restoreInputDraft } = chat;
+  const { abortActiveRequest, clearInputDrafts, loadChats, loadModels, restoreInputDraft } = chat;
 
   function handleAuthExpired() {
     if (!state.token) return;
@@ -24,7 +24,17 @@ export function createAuthController({ state, dom, API, ui, chat }) {
     restoreInputDraft('new');
   }
   
+  // The server enforces the registration mode; this only hides what cannot work.
+  async function loadRegistrationMode() {
+    try {
+      const { registration } = await API.get('/auth/config');
+      [...dom.tabs].find(tab => tab.dataset.tab === 'register')?.classList.toggle('hidden', registration === 'closed');
+      dom.regInviteGroup?.classList.toggle('hidden', registration !== 'invite');
+    } catch {}
+  }
+
   function initAuth() {
+    loadRegistrationMode();
     dom.tabs.forEach(tab => {
       tab.addEventListener('click', () => {
         dom.tabs.forEach(t => t.classList.remove('active'));
@@ -64,14 +74,15 @@ export function createAuthController({ state, dom, API, ui, chat }) {
       const email = dom.regEmail.value.trim();
       const password = dom.regPass.value;
   
-      if (password.length < 6) {
-        dom.regError.textContent = '密码至少需要 6 位字符';
+      if (password.length < 8) {
+        dom.regError.textContent = '密码至少需要 8 位字符';
         dom.regError.classList.remove('hidden');
         return;
       }
   
       try {
-        const data = await API.post('/auth/register', { username, email, password });
+        const inviteCode = dom.regInvite?.value.trim() || undefined;
+        const data = await API.post('/auth/register', { username, email, password, inviteCode });
         state.token = data.token;
         state.user = data.user;
         localStorage.setItem('ai_chat_token', data.token);
@@ -101,6 +112,7 @@ export function createAuthController({ state, dom, API, ui, chat }) {
 
   function logout() {
     localStorage.removeItem('ai_chat_token');
+    clearInputDrafts();
     abortActiveRequest();
     Object.assign(state, { token: null, user: null, chats: [], currentChat: null, messages: [], batchMode: false });
     state.batchSelected.clear();

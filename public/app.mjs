@@ -104,8 +104,8 @@ const {
 
 authController = createAuthController({ state, dom, API, ui, chat: chatController });
 const { checkAuth, initAuth, logout } = authController;
-const settingsController = createSettingsController({ state, dom, API, ui });
-const { closeSettings, openSettings, submitSettings } = settingsController;
+const settingsController = createSettingsController({ state, dom, API, ui, logout });
+const { closeSettings, deleteAccount, logoutAllDevices, openSettings, submitSettings } = settingsController;
 
 
 function initEvents() {
@@ -138,6 +138,8 @@ function initEvents() {
   dom.settingsBackdrop?.addEventListener('click', closeSettings);
   dom.settingsForm?.addEventListener('submit', submitSettings);
   dom.settingsLogoutBtn?.addEventListener('click', () => { closeSettings(); dom.logoutBtn.click(); });
+  dom.settingsLogoutAllBtn?.addEventListener('click', logoutAllDevices);
+  dom.settingsDeleteAccountBtn?.addEventListener('click', deleteAccount);
   dom.settingsModal?.addEventListener('click', event => {
     const choice = event.target.closest('button[data-theme-choice]')?.dataset.themeChoice;
     if (choice) setThemePreference(choice);

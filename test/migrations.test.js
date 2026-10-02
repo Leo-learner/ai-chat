@@ -30,11 +30,13 @@ test('fresh database applies every migration exactly once', () => {
     initialize(dbPath);
 
     const db = new Database(dbPath, { readonly: true });
-    assert.deepEqual(migrationIds(db), [1, 2]);
+    assert.deepEqual(migrationIds(db), [1, 2, 3, 4]);
     const roleColumn = db.prepare('PRAGMA table_info(users)').all().find(column => column.name === 'role');
     assert.ok(roleColumn);
     assert.equal(roleColumn.dflt_value, "'user'");
-    for (const table of ['users', 'chats', 'messages', 'user_memories']) {
+    const tokenVersionColumn = db.prepare('PRAGMA table_info(users)').all().find(column => column.name === 'token_version');
+    assert.equal(tokenVersionColumn?.dflt_value, '0');
+    for (const table of ['users', 'chats', 'messages', 'user_memories', 'user_daily_usage']) {
       assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
     }
     db.close();
@@ -67,7 +69,7 @@ test('legacy database gains role metadata without losing existing users', () => 
     initialize(dbPath);
 
     const migrated = new Database(dbPath, { readonly: true });
-    assert.deepEqual(migrationIds(migrated), [1, 2]);
+    assert.deepEqual(migrationIds(migrated), [1, 2, 3, 4]);
     assert.deepEqual(migrated.prepare('SELECT id, username, role FROM users WHERE id = ?').get('legacy-id'), {
       id: 'legacy-id',
       username: 'legacy-user',
@@ -100,7 +102,7 @@ test('legacy role column without migration metadata is reconciled explicitly', (
 
     initialize(dbPath);
     const migrated = new Database(dbPath, { readonly: true });
-    assert.deepEqual(migrationIds(migrated), [1, 2]);
+    assert.deepEqual(migrationIds(migrated), [1, 2, 3, 4]);
     assert.equal(migrated.prepare('PRAGMA table_info(users)').all().filter(column => column.name === 'role').length, 1);
     migrated.close();
   } finally {

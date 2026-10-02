@@ -100,13 +100,15 @@ export function createUiController({
       const backdrop = document.createElement('div');
       backdrop.className = 'app-dialog-backdrop';
       const fieldMarkup = fields.map(field => {
-        const value = escapeHtml(field.value || '');
+        const value = field.value || '';
         const label = escapeHtml(field.label || field.name || '');
-        const placeholder = escapeHtml(field.placeholder || '');
+        const placeholder = escapeAttr(field.placeholder || '');
         const required = field.required ? ' required' : '';
+        const type = field.type === 'password' ? 'password' : 'text';
+        const autocomplete = type === 'password' ? ' autocomplete="current-password"' : '';
         const input = field.multiline
-          ? `<textarea class="app-dialog-input" data-dialog-field="${escapeAttr(field.name)}" rows="${field.rows || 5}" placeholder="${placeholder}"${required}>${value}</textarea>`
-          : `<input class="app-dialog-input" data-dialog-field="${escapeAttr(field.name)}" type="text" value="${value}" placeholder="${placeholder}"${required}>`;
+          ? `<textarea class="app-dialog-input" data-dialog-field="${escapeAttr(field.name)}" rows="${field.rows || 5}" placeholder="${placeholder}"${required}>${escapeHtml(value)}</textarea>`
+          : `<input class="app-dialog-input" data-dialog-field="${escapeAttr(field.name)}" type="${type}"${autocomplete} value="${escapeAttr(value)}" placeholder="${placeholder}"${required}>`;
         return `<label class="app-dialog-field"><span>${label}</span>${input}</label>`;
       }).join('');
   
@@ -132,7 +134,8 @@ export function createUiController({
         const values = {};
         for (const field of fields) {
           const control = backdrop.querySelector(`[data-dialog-field="${field.name}"]`);
-          const value = control?.value?.trim?.() ?? '';
+          // Passwords are submitted verbatim; whitespace may be part of them.
+          const value = field.type === 'password' ? control?.value ?? '' : control?.value?.trim?.() ?? '';
           if (field.required && !value) {
             control?.focus();
             toast('请先填写必要内容');

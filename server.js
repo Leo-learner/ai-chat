@@ -7,7 +7,7 @@ const cors = require('cors');
 const { v4: uuid } = require('uuid');
 const path = require('path');
 const fs = require('fs');
-const { readIntegerEnv } = require('./lib/validation');
+const { readChoiceEnv, readIntegerEnv } = require('./lib/validation');
 const { validateDist } = require('./lib/static-assets');
 
 const { signToken, authRequired } = require('./auth');
@@ -23,12 +23,26 @@ const rootLogger = createRootLogger();
 const MAX_MESSAGE_CHARS = readIntegerEnv('MAX_MESSAGE_CHARS', 32000, { min: 1, max: 200000 });
 const MAX_SYSTEM_PROMPT_CHARS = readIntegerEnv('MAX_SYSTEM_PROMPT_CHARS', 16000, { min: 1, max: 100000 });
 const MAX_CHAT_TITLE_CHARS = readIntegerEnv('MAX_CHAT_TITLE_CHARS', 80, { min: 1, max: 500 });
+const MAX_CHATS_PER_USER = readIntegerEnv('MAX_CHATS_PER_USER', 500, { min: 1, max: 100000 });
+// 0 disables the daily quota. Days roll over at midnight in the given UTC offset.
+const CHAT_DAILY_MESSAGE_LIMIT = readIntegerEnv('CHAT_DAILY_MESSAGE_LIMIT', 200, { min: 0, max: 100000 });
+const CHAT_MAX_CONCURRENT_STREAMS = readIntegerEnv('CHAT_MAX_CONCURRENT_STREAMS', 2, { min: 1, max: 20 });
+const CHAT_QUOTA_UTC_OFFSET_HOURS = readIntegerEnv('CHAT_QUOTA_UTC_OFFSET_HOURS', 8, { min: -12, max: 14 });
+// Registration is closed unless explicitly opened; "invite" requires one of
+// the comma-separated REGISTRATION_INVITE_CODES.
+const REGISTRATION = {
+  mode: readChoiceEnv('REGISTRATION_MODE', 'closed', ['open', 'invite', 'closed']),
+  inviteCodes: String(process.env.REGISTRATION_INVITE_CODES || '')
+    .split(',')
+    .map(code => code.trim())
+    .filter(Boolean),
+};
 const MODEL_TIMEOUTS = {
   firstByteMs: readIntegerEnv('MODEL_FIRST_BYTE_TIMEOUT_MS', 30000, { min: 100, max: 300000 }),
   idleMs: readIntegerEnv('MODEL_STREAM_IDLE_TIMEOUT_MS', 45000, { min: 100, max: 300000 }),
   totalMs: readIntegerEnv('MODEL_TOTAL_TIMEOUT_MS', 300000, { min: 1000, max: 1800000 }),
 };
-const { db, DB_PATH, userQueries, chatQueries, messageQueries } = require('./db');
+const { db, DB_PATH, userQueries, chatQueries, messageQueries, usageQueries, deleteUserAccount } = require('./db');
 
 // ── Middleware ──────────────────────────────────────────
 function assertRuntimeConfig() {
@@ -38,6 +52,9 @@ function assertRuntimeConfig() {
       throw new Error(message);
     }
     rootLogger.warn(`JWT_SECRET is using the development default. Set a strong JWT_SECRET in ~/.ai-chat/secrets.env before exposing this service.`);
+  }
+  if (REGISTRATION.mode === 'invite' && !REGISTRATION.inviteCodes.length) {
+    rootLogger.warn('REGISTRATION_MODE=invite but REGISTRATION_INVITE_CODES is empty; nobody can register.');
   }
 }
 
@@ -81,11 +98,15 @@ app.use((req, res, next) => {
     "frame-ancestors 'none'",
     "form-action 'self'",
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
     "connect-src 'self'",
   ].join('; '));
+  // req.secure reflects X-Forwarded-Proto from the trusted loopback proxy.
+  if (req.secure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+  }
   next();
 });
 // Request ID — attach a UUID to every request for log correlation
@@ -111,6 +132,8 @@ if (shouldServeDist) validateDist(distPath);
 app.use(express.static(shouldServeDist ? distPath : rawPublicPath));
 
 const { createRateLimiter } = require('./lib/rate-limiter');
+const { createLoginThrottle } = require('./lib/login-throttle');
+const { createUsageLimits } = require('./lib/usage-limits');
 
 const authLimiter = createRateLimiter({
   name: 'auth',
@@ -121,6 +144,23 @@ const chatLimiter = createRateLimiter({
   name: 'chat',
   windowMs: process.env.CHAT_RATE_LIMIT_WINDOW_MS || 60 * 1000,
   max: process.env.CHAT_RATE_LIMIT_MAX || 40,
+});
+const chatWriteLimiter = createRateLimiter({
+  name: 'chat-write',
+  windowMs: 60 * 1000,
+  max: process.env.CHAT_WRITE_RATE_LIMIT_MAX || 60,
+});
+const chatReadLimiter = createRateLimiter({
+  name: 'chat-read',
+  windowMs: 60 * 1000,
+  max: process.env.CHAT_READ_RATE_LIMIT_MAX || 240,
+});
+const loginThrottle = createLoginThrottle();
+const usageLimits = createUsageLimits({
+  usageQueries,
+  dailyMessageLimit: CHAT_DAILY_MESSAGE_LIMIT,
+  maxConcurrentStreams: CHAT_MAX_CONCURRENT_STREAMS,
+  dayOffsetHours: CHAT_QUOTA_UTC_OFFSET_HOURS,
 });
 
 // ── Core API modules ────────────────────────────────────
@@ -136,16 +176,27 @@ const searchModule = createSearchModule({
   getAllModels,
 });
 
-app.use('/api/auth', createAuthRouter({ userQueries, signToken, authRequired, authLimiter }));
+app.use('/api/auth', createAuthRouter({
+  userQueries,
+  deleteUserAccount,
+  signToken,
+  authRequired,
+  authLimiter,
+  loginThrottle,
+  registration: REGISTRATION,
+}));
 app.use('/api/memories', memoryModule.router);
 app.use('/api', searchModule.router);
 app.use('/api', createChatRouter({
   authRequired,
+  chatReadLimiter,
+  chatWriteLimiter,
   chatQueries,
   messageQueries,
   normalizeChatModel,
   maxChatTitleChars: MAX_CHAT_TITLE_CHARS,
   maxSystemPromptChars: MAX_SYSTEM_PROMPT_CHARS,
+  maxChatsPerUser: MAX_CHATS_PER_USER,
 }));
 app.use('/api', createStreamRouter({
   authRequired,
@@ -158,6 +209,7 @@ app.use('/api', createStreamRouter({
   streamChat,
   memoryService: memoryModule.service,
   searchService: searchModule.service,
+  usageLimits,
   maxMessageChars: MAX_MESSAGE_CHARS,
   modelTimeouts: MODEL_TIMEOUTS,
 }));
@@ -192,4 +244,5 @@ app.listen(PORT, HOST, () => {
   const configured = Object.values(providers).filter(p => p.configured);
   rootLogger.info(`Providers: ${configured.map(p => p.name).join(', ') || 'none'}`);
   rootLogger.info(`Models: ${getAllModels().length}`);
+  rootLogger.info(`Registration: ${REGISTRATION.mode}`);
 });

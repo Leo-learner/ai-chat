@@ -103,6 +103,7 @@ async function main() {
       OPENROUTER_API_KEY: 'smoke-key',
       OPENROUTER_BASE_URL: `http://127.0.0.1:${providerPort}/api/v1`,
       DEFAULT_CHAT_MODEL: 'openrouter/free',
+      REGISTRATION_MODE: 'open',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -115,6 +116,7 @@ async function main() {
   const home = await fetch(baseUrl);
   const csp = home.headers.get('content-security-policy') || '';
   assert.match(csp, /script-src 'self'/);
+  assert.match(csp, /style-src 'self'(;|$)/);
   assert.match(csp, /object-src 'none'/);
   assert.equal(home.headers.get('cross-origin-opener-policy'), 'same-origin');
   assert.equal(home.headers.get('x-content-type-options'), 'nosniff');
