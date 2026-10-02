@@ -11,8 +11,9 @@ button:disabled { cursor: not-allowed; }
 }
 
 @layer utilities {
-.view { display: none; }
-.view.active { display: block; }
+/* Only hide inactive views. A display value here would beat each view's
+   own components-layer layout (the auth view is a centering grid). */
+.view:not(.active) { display: none; }
 .hidden, [hidden] { display: none; }
 .mobile-only { display: none; }
 }
