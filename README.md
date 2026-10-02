@@ -73,6 +73,9 @@ npm run smoke:security-latency
 - `data/`, logs, databases, backup files, build artifacts, and local secret files are ignored by Git.
 - Legacy control and Finder endpoints return a fixed 403 response; their implementations are not shipped.
 - Use a strong `JWT_SECRET` in production. Do not use development defaults.
+- Registration is closed unless `REGISTRATION_MODE` is `invite` (with `REGISTRATION_INVITE_CODES`) or `open`.
+- Each user has a daily message quota, a concurrent-stream cap, and a chat-count cap; admins are exempt from the quota and chat cap.
+- Changing the password or using "sign out of all devices" revokes every previously issued token.
 
 ## License
 
@@ -104,12 +107,19 @@ OPENROUTER_API_KEY=<your-openrouter-api-key>
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 DEFAULT_CHAT_MODEL=openrouter/free
 
+# 注册（默认 closed；invite 需要邀请码，多个用逗号分隔）
+REGISTRATION_MODE=invite
+REGISTRATION_INVITE_CODES=<random-code>
+
 # 可选
 PORT=3200
 NODE_ENV=production
 HOST=127.0.0.1
 JSON_BODY_LIMIT=256kb
 TRUST_PROXY=loopback
+CHAT_DAILY_MESSAGE_LIMIT=200      # 每人每天消息数，0 为不限，管理员不受限
+CHAT_MAX_CONCURRENT_STREAMS=2     # 每人同时生成中的回答数
+MAX_CHATS_PER_USER=500            # 每人会话数上限，管理员不受限
 
 # 数据路径
 DB_PATH=/opt/apps/ai-chat/data/chat.db
@@ -150,28 +160,17 @@ MAX_CHAT_TITLE_CHARS=80
 MODEL_FIRST_BYTE_TIMEOUT_MS=30000
 MODEL_STREAM_IDLE_TIMEOUT_MS=45000
 MODEL_TOTAL_TIMEOUT_MS=300000
+REGISTRATION_MODE=invite
 EOF
+echo "REGISTRATION_INVITE_CODES=$(openssl rand -hex 12)" >> .env
 chmod 600 .env
 
-# 4. systemd 服务
-sudo tee /etc/systemd/system/ai-chat.service << 'SVC'
-[Unit]
-Description=AI Chat Server Chat-Only Service
-After=network.target
-[Service]
-Type=simple
-User=leo
-Group=leo
-WorkingDirectory=/opt/apps/ai-chat
-EnvironmentFile=/opt/apps/ai-chat/.env
-ExecStart=/usr/bin/node server.js
-Restart=always
-RestartSec=5
-NoNewPrivileges=true
-PrivateTmp=true
-[Install]
-WantedBy=multi-user.target
-SVC
+# 4. systemd 服务：专用系统账户 + 沙箱（只有 data/ 可写）
+sudo useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin aichat
+sudo mkdir -p /opt/apps/ai-chat/data
+sudo chown -R aichat:aichat /opt/apps/ai-chat/data
+sudo chmod 700 /opt/apps/ai-chat/data
+sudo cp deploy/systemd/ai-chat.service /etc/systemd/system/ai-chat.service
 
 sudo systemctl daemon-reload
 sudo systemctl enable ai-chat
@@ -189,6 +188,9 @@ sudo certbot --nginx -d aichat.dkz12345.com
 # 7. 证书签发后切换到仓库内的最终 HTTPS 配置
 sudo cp deploy/nginx/aichat.dkz12345.com.conf /etc/nginx/sites-available/aichat.dkz12345.com
 sudo nginx -t && sudo systemctl reload nginx
+
+# 8. 隐藏 nginx 版本号：在 /etc/nginx/nginx.conf 的 http 块中启用
+#    server_tokens off;
 ```
 
 ### 数据迁移
@@ -199,14 +201,17 @@ sudo nginx -t && sudo systemctl reload nginx
 # 本地：检查数据大小
 ls -lh data/chat.db data/chat.db-wal
 
-# 服务器：先备份
-cp /opt/apps/ai-chat/data/chat.db /opt/apps/ai-chat/data/chat.db.bak.$(date +%Y%m%d)
+# 服务器：停服务并备份（data/ 归 aichat 所有，需要 sudo）
+sudo systemctl stop ai-chat
+sudo cp -a /opt/apps/ai-chat/data /opt/apps/ai-chat-deploy-backups/data.$(date +%Y%m%d-%H%M%S)
 
-# 本地：复制到服务器
-scp data/chat.db leo@20.48.14.96:/opt/apps/ai-chat/data/chat.db
+# 本地：复制到服务器临时目录
+scp data/chat.db leo@20.48.14.96:/tmp/chat.db
 
-# 服务器：重启服务
-sudo systemctl restart ai-chat
+# 服务器：放入数据目录并恢复属主后启动
+sudo install -o aichat -g aichat -m 600 /tmp/chat.db /opt/apps/ai-chat/data/chat.db
+sudo rm -f /opt/apps/ai-chat/data/chat.db-wal /opt/apps/ai-chat/data/chat.db-shm /tmp/chat.db
+sudo systemctl start ai-chat
 ```
 
 ### 安全注意事项
@@ -214,6 +219,7 @@ sudo systemctl restart ai-chat
 - 使用强随机 `JWT_SECRET`（`openssl rand -hex 32`）
 - `.env` 文件权限必须为 `600`
 - API Key 不通过前端传输，所有模型调用走后端代理
-- systemd 服务启用 `NoNewPrivileges=true`、`PrivateTmp=true`
-- CSP、frame 限制等响应安全头由应用统一发送，Nginx 不重复添加
+- systemd 服务以专用 `aichat` 账户运行，启用 `ProtectSystem=strict`、`ProtectHome=true` 等沙箱，只有 `data/` 可写（见 `deploy/systemd/ai-chat.service`）
+- CSP（不允许内联脚本和内联样式）、HSTS（仅 HTTPS 请求）、frame 限制等响应安全头由应用统一发送，Nginx 不重复添加
+- 默认关闭注册；对外开放请使用邀请码模式，并保留每日额度、并发和会话数上限
 - 生产环境必须先运行 `npm run build`，且不得设置 `SERVE_DIST=0`

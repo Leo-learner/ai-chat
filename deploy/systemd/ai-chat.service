@@ -1,0 +1,47 @@
+[Unit]
+Description=AI Chat Server Chat-Only Service
+After=network.target
+
+[Service]
+Type=simple
+# Dedicated system account: no login shell, no sudo, and no write access to
+# the deploy user's home or to other applications under /opt/apps.
+User=aichat
+Group=aichat
+WorkingDirectory=/opt/apps/ai-chat
+# Read by systemd before privileges are dropped; aichat itself cannot read it.
+EnvironmentFile=/opt/apps/ai-chat/.env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+UMask=0077
+
+# Sandbox: the whole filesystem is read-only except the SQLite directory.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/apps/ai-chat/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# MemoryDenyWriteExecute stays off: V8's JIT needs writable executable memory.
+
+[Install]
+WantedBy=multi-user.target
