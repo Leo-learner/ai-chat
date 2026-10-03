@@ -472,5 +472,17 @@ export function createUiController({
     }, 180);
   }
 
-  return { applyThemePreference, appConfirm, appPrompt, bindSidebarSwipeToClose, closeAppDialog, closeMessageActionMenus, closeMobileMessageActionSheet, closeMobileMoreMenu, closeSidebarOnMobile, focusFirstInteractive, isMobileLayout, openAppDialog, openMobileMessageActionSheet, openMobileMoreMenu, openSidebarOnMobile, resetViewVisibility, restoreFocus, setElementSuppressed, setMessageActionMenuOpen, setThemePreference, showView, syncMobileComposerFocus, syncMobileWebMode, syncResponsiveSidebarState, syncThemeControls, toast };
+  // Kept beside the other overlays so ending a session can close it as well;
+  // the reset keeps typed passwords from waiting in the hidden form.
+  function closeSettings() {
+    const wasOpen = dom.settingsModal && !dom.settingsModal.classList.contains('hidden');
+    dom.settingsForm?.reset();
+    dom.settingsModal?.classList.add('hidden');
+    dom.settingsBackdrop?.classList.add('hidden');
+    setElementSuppressed(dom.settingsModal, true);
+    setElementSuppressed(dom.settingsBackdrop, true);
+    if (wasOpen) restoreFocus(dom.settingsModal._returnFocus);
+  }
+
+  return { applyThemePreference, appConfirm, appPrompt, bindSidebarSwipeToClose, closeAppDialog, closeMessageActionMenus, closeMobileMessageActionSheet, closeMobileMoreMenu, closeSettings, closeSidebarOnMobile, focusFirstInteractive, isMobileLayout, openAppDialog, openMobileMessageActionSheet, openMobileMoreMenu, openSidebarOnMobile, resetViewVisibility, restoreFocus, setElementSuppressed, setMessageActionMenuOpen, setThemePreference, showView, syncMobileComposerFocus, syncMobileWebMode, syncResponsiveSidebarState, syncThemeControls, toast };
 }

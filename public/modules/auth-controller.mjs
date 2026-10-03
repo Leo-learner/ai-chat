@@ -1,5 +1,5 @@
 export function createAuthController({ state, dom, API, ui, chat }) {
-  const { closeMobileMoreMenu, closeSidebarOnMobile, showView, syncResponsiveSidebarState, toast } = ui;
+  const { closeAppDialog, closeMobileMoreMenu, closeSettings, closeSidebarOnMobile, showView, syncResponsiveSidebarState, toast } = ui;
   const { abortActiveRequest, clearInputDrafts, loadChats, loadModels, renderChatList, restoreInputDraft, showEmptyState } = chat;
 
   // Drops the account's data from state and from the hidden chat view, so the
@@ -17,6 +17,9 @@ export function createAuthController({ state, dom, API, ui, chat }) {
     showEmptyState();
     closeSidebarOnMobile();
     closeMobileMoreMenu();
+    // Dialogs sit outside the views, so showView() alone would leave them open.
+    closeAppDialog();
+    closeSettings();
     showView('authView');
   }
 

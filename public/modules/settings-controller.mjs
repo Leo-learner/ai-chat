@@ -1,5 +1,5 @@
 export function createSettingsController({ state, dom, API, ui, logout }) {
-  const { appConfirm, appPrompt, restoreFocus, setElementSuppressed, syncThemeControls, toast } = ui;
+  const { appConfirm, appPrompt, closeSettings, setElementSuppressed, syncThemeControls, toast } = ui;
 
   function setSettingsMessage(text, kind = '') {
     const el = dom.settingsMessage;
@@ -29,15 +29,6 @@ export function createSettingsController({ state, dom, API, ui, logout }) {
     setElementSuppressed(dom.settingsModal, false);
     setElementSuppressed(dom.settingsBackdrop, false);
     setTimeout(() => dom.settingsUsername?.focus(), 30);
-  }
-  
-  function closeSettings() {
-    const wasOpen = dom.settingsModal && !dom.settingsModal.classList.contains('hidden');
-    dom.settingsModal?.classList.add('hidden');
-    dom.settingsBackdrop?.classList.add('hidden');
-    setElementSuppressed(dom.settingsModal, true);
-    setElementSuppressed(dom.settingsBackdrop, true);
-    if (wasOpen) restoreFocus(dom.settingsModal._returnFocus);
   }
   
   async function submitSettings(e) {

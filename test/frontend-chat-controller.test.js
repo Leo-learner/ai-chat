@@ -65,8 +65,11 @@ test('frontend controllers send, stop, and regenerate through the real app entry
   let nextId = 1;
   // Set to a promise to hold every response until it settles, like a slow network.
   let slowNetwork = null;
+  // Set to true to refuse every signed-in request, like an expired token.
+  let tokenExpired = false;
   global.fetch = async (url, options = {}) => {
     if (slowNetwork) await slowNetwork;
+    if (tokenExpired && options.headers?.Authorization) return json({ error: '登录已过期' }, 401);
     const pathname = String(url).replace(/^https?:\/\/[^/]+/, '');
     if (pathname === '/api/auth/me') return json({ user: { id: 'u1', username: 'tester' } });
     if (pathname === '/api/auth/login') return json({ token: 'second-token', user: { id: 'u2', username: 'second' } });
@@ -248,6 +251,36 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     assert.equal(document.getElementById('authView').classList.contains('hidden'), false, 'sign-in view no longer shown');
     assert.equal([...document.querySelectorAll('.toast')].some(el => el.textContent === '设置已更新'), false,
       'success toast shown after sign-out');
+    const filledSettingsInputs = () => [...document.querySelectorAll('#settingsForm input')]
+      .filter(field => field.value).map(field => field.id);
+    assert.deepEqual(filledSettingsInputs(), [], 'settings form kept what the signed-out account typed');
+
+    // Let the token expire while the settings dialog holds typed passwords and the
+    // delete-account prompt is open over it: a new chat requested just before comes
+    // back 401, and neither dialog may stay open over the sign-in view.
+    document.getElementById('loginUser').value = 'second';
+    document.getElementById('loginPass').value = 'second-password';
+    document.getElementById('loginForm').requestSubmit();
+    await waitFor(() => !document.getElementById('chatView').classList.contains('hidden'), 'second account did not sign in again');
+    await new Promise(resolve => setTimeout(resolve, 50));
+    let finishCreating;
+    slowNetwork = new Promise(resolve => { finishCreating = resolve; });
+    document.getElementById('railNewChatBtn').click();
+    document.getElementById('settingsBtn').click();
+    for (const id of ['settingsNewPassword', 'settingsConfirmPassword', 'settingsCurrentPassword']) {
+      document.getElementById(id).value = 'typed-password';
+    }
+    document.getElementById('settingsDeleteAccountBtn').click();
+    (await waitFor(() => document.querySelector('[data-dialog-field="password"]'), 'delete-account prompt did not open'))
+      .value = 'typed-password';
+    tokenExpired = true;
+    slowNetwork = null;
+    finishCreating();
+    await waitFor(() => !document.getElementById('authView').classList.contains('hidden'), 'expired session did not return to sign-in');
+    assert.equal(document.getElementById('settingsModal').classList.contains('hidden'), true, 'settings dialog left over the sign-in view');
+    assert.equal(document.getElementById('settingsBackdrop').classList.contains('hidden'), true, 'settings backdrop left over the sign-in view');
+    assert.deepEqual(filledSettingsInputs(), [], 'settings form kept what the expired session typed');
+    await waitFor(() => !document.querySelector('.app-dialog-backdrop'), 'delete-account prompt left over the sign-in view');
   } finally {
     await new Promise(resolve => setTimeout(resolve, 250));
     dom.window.close();
