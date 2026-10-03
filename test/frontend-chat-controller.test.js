@@ -70,6 +70,10 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     const pathname = String(url).replace(/^https?:\/\/[^/]+/, '');
     if (pathname === '/api/auth/me') return json({ user: { id: 'u1', username: 'tester' } });
     if (pathname === '/api/auth/login') return json({ token: 'second-token', user: { id: 'u2', username: 'second' } });
+    if (pathname === '/api/auth/profile' && options.method === 'PATCH') {
+      // Like routes/auth.js, a saved profile comes back with a freshly signed token.
+      return json({ token: 'renamed-token', user: { id: 'u2', username: JSON.parse(options.body).newUsername } });
+    }
     if (pathname === '/api/models') return json({ models: [{ id: 'openrouter/free' }], webSearch: { enabled: false } });
     if (pathname === '/api/chats' && (!options.method || options.method === 'GET')) {
       // The second account has no chats of its own.
@@ -225,6 +229,25 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     // The credentials must not wait in the hidden sign-in form for the next person.
     assert.equal(document.getElementById('loginUser').value, '', 'username left in the sign-in form');
     assert.equal(document.getElementById('loginPass').value, '', 'password left in the sign-in form');
+
+    // Save a new username, then sign out from the settings dialog before the
+    // reply arrives: its fresh token must not sign the account back in on reload.
+    const saveButton = document.getElementById('settingsSaveBtn');
+    document.getElementById('settingsBtn').click();
+    document.getElementById('settingsUsername').value = 'second-renamed';
+    document.getElementById('settingsCurrentPassword').value = 'second-password';
+    let finishSaving;
+    slowNetwork = new Promise(resolve => { finishSaving = resolve; });
+    document.getElementById('settingsForm').requestSubmit();
+    assert.equal(saveButton.disabled, true, 'profile save did not start');
+    document.getElementById('settingsLogoutBtn').click();
+    slowNetwork = null;
+    finishSaving();
+    await waitFor(() => !saveButton.disabled, 'save button not restored after the late reply');
+    assert.equal(localStorage.getItem('ai_chat_token'), null, 'late profile reply stored the token again');
+    assert.equal(document.getElementById('authView').classList.contains('hidden'), false, 'sign-in view no longer shown');
+    assert.equal([...document.querySelectorAll('.toast')].some(el => el.textContent === '设置已更新'), false,
+      'success toast shown after sign-out');
   } finally {
     await new Promise(resolve => setTimeout(resolve, 250));
     dom.window.close();

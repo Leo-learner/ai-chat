@@ -62,6 +62,7 @@ export function createSettingsController({ state, dom, API, ui, logout }) {
     if (usernameChanged) payload.newUsername = newUsername;
     if (wantsPassword) payload.newPassword = newPassword;
   
+    const userId = state.user?.id;
     const btn = dom.settingsSaveBtn;
     const original = btn?.textContent;
     if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
@@ -69,6 +70,9 @@ export function createSettingsController({ state, dom, API, ui, logout }) {
       // authRedirect:false so a wrong current password (400) doesn't trip the
       // global 401/redirect handling; we surface the message inline instead.
       const data = await API.patch('/auth/profile', payload, { authRedirect: false });
+      // The session ended (or another account signed in) while saving: storing
+      // this reply's fresh token would sign the old account back in on reload.
+      if (state.user?.id !== userId) return;
       if (data.token) {
         state.token = data.token;
         try { localStorage.setItem('ai_chat_token', data.token); } catch {}
