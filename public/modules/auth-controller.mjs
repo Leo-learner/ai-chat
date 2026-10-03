@@ -1,20 +1,36 @@
 export function createAuthController({ state, dom, API, ui, chat }) {
   const { closeMobileMoreMenu, closeSidebarOnMobile, showView, syncResponsiveSidebarState, toast } = ui;
-  const { abortActiveRequest, clearInputDrafts, loadChats, loadModels, restoreInputDraft } = chat;
+  const { abortActiveRequest, clearInputDrafts, loadChats, loadModels, renderChatList, restoreInputDraft, showEmptyState } = chat;
+
+  // Drops the account's data from state and from the hidden chat view, so the
+  // next account to sign in on this tab starts from a blank chat view.
+  function endSession() {
+    abortActiveRequest();
+    localStorage.removeItem('ai_chat_token');
+    Object.assign(state, {
+      token: null, user: null, chats: [], currentChat: null, messages: [], chatListLoading: false, batchMode: false,
+      chatSearchQuery: '', stoppedDraft: null, messageRenderExpanded: false, webSearchEnabled: false,
+    });
+    state.batchSelected.clear();
+    if (dom.chatSearchInput) dom.chatSearchInput.value = '';
+    renderChatList();
+    showEmptyState();
+    closeSidebarOnMobile();
+    closeMobileMoreMenu();
+    showView('authView');
+  }
 
   function handleAuthExpired() {
     if (!state.token) return;
-    abortActiveRequest();
-    localStorage.removeItem('ai_chat_token');
-    state.token = null;
-    state.user = null;
-    state.currentChat = null;
-    state.messages = [];
-    showView('authView');
+    endSession();
     toast('登录已过期，请重新登录');
   }
 
   function afterLogin() {
+    // Signing in must not leave this account's credentials in the hidden auth
+    // forms, where the next person to use the tab would find them.
+    dom.loginForm.reset();
+    dom.registerForm.reset();
     showView('chatView');
     dom.userName.textContent = state.user.username;
     dom.userAvatar.textContent = state.user.username[0].toUpperCase();
@@ -111,14 +127,8 @@ export function createAuthController({ state, dom, API, ui, chat }) {
   }
 
   function logout() {
-    localStorage.removeItem('ai_chat_token');
     clearInputDrafts();
-    abortActiveRequest();
-    Object.assign(state, { token: null, user: null, chats: [], currentChat: null, messages: [], batchMode: false });
-    state.batchSelected.clear();
-    closeSidebarOnMobile();
-    closeMobileMoreMenu();
-    showView('authView');
+    endSession();
   }
 
   return { afterLogin, checkAuth, handleAuthExpired, initAuth, logout };

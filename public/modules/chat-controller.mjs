@@ -721,14 +721,18 @@ export function createChatController({ state, dom, API, allowedChatModels, defau
     dom.messagesContainer.classList.remove('hidden');
     setSelectedModel(state.currentChat.model);
     await loadMessages();
-    restoreInputDraft(state.currentChat.id);
+    // The session may have ended while loading; the default covers a null chat.
+    restoreInputDraft();
   }
   
   async function loadMessages() {
-    if (!state.currentChat) return;
+    const chatId = state.currentChat?.id;
+    if (!chatId) return;
   
     try {
-      const data = await API.get(`/chats/${state.currentChat.id}/messages`);
+      const data = await API.get(`/chats/${chatId}/messages`);
+      // Drop the reply if another chat was opened, or the user signed out, meanwhile.
+      if (state.currentChat?.id !== chatId) return;
       state.messages = data.messages || [];
       renderMessages();
       scrollToBottom();

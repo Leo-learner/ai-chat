@@ -63,11 +63,18 @@ test('frontend controllers send, stop, and regenerate through the real app entry
   const chats = [];
   const messages = [];
   let nextId = 1;
+  // Set to a promise to hold every response until it settles, like a slow network.
+  let slowNetwork = null;
   global.fetch = async (url, options = {}) => {
+    if (slowNetwork) await slowNetwork;
     const pathname = String(url).replace(/^https?:\/\/[^/]+/, '');
     if (pathname === '/api/auth/me') return json({ user: { id: 'u1', username: 'tester' } });
+    if (pathname === '/api/auth/login') return json({ token: 'second-token', user: { id: 'u2', username: 'second' } });
     if (pathname === '/api/models') return json({ models: [{ id: 'openrouter/free' }], webSearch: { enabled: false } });
-    if (pathname === '/api/chats' && (!options.method || options.method === 'GET')) return json({ chats });
+    if (pathname === '/api/chats' && (!options.method || options.method === 'GET')) {
+      // The second account has no chats of its own.
+      return json({ chats: options.headers?.Authorization === 'Bearer second-token' ? [] : chats });
+    }
     if (pathname === '/api/chats' && options.method === 'POST') {
       const chat = { id: 'c1', title: 'New Chat', model: 'openrouter/free' };
       if (!chats.length) chats.push(chat);
@@ -139,11 +146,7 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     await waitFor(() => document.body.textContent.includes('新答案'), 'regenerated answer did not render');
     assert.equal(document.body.textContent.includes('原答案'), false);
 
-    input.value = '未发送的草稿';
-    input.dispatchEvent(new window.Event('input', { bubbles: true }));
-    assert.equal(localStorage.getItem('ai_chat_draft:u1:c1'), '未发送的草稿');
-
-    // Runs just before logout because it ends by deleting the current chat.
+    // Runs before the sign-out steps because it ends by deleting the current chat.
     await t.test('back-to-latest button follows the distance from the latest message', async () => {
       // Let the regenerate flow's trailing re-render and scroll settle first.
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -177,8 +180,51 @@ test('frontend controllers send, stop, and regenerate through the real app entry
       assert.equal(shown(), false, 'should hide once the empty state replaces the message list');
     });
 
+    // Sign out mid-conversation: a reply on screen, an unsent draft, a sidebar
+    // search, and the chat and chat list still reloading over a slow network.
+    const messageList = document.getElementById('messagesContainer');
+    input.value = '退出前的对话';
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    send.click();
+    await waitFor(() => messageList.textContent.includes('本地回答成功'), 'reply before sign-out did not render');
+    await new Promise(resolve => setTimeout(resolve, 100));
+    input.value = '未发送的草稿';
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    assert.equal(localStorage.getItem('ai_chat_draft:u1:c1'), '未发送的草稿');
+    let finishLoading;
+    slowNetwork = new Promise(resolve => { finishLoading = resolve; });
+    document.querySelector('.chat-item[data-chat-id="c1"]').click();
+    document.getElementById('railHistoryBtn').click();
+    const search = document.getElementById('chatSearchInput');
+    search.value = 'New';
+    search.dispatchEvent(new window.Event('input', { bubbles: true }));
+
     document.getElementById('logoutBtn').click();
     assert.deepEqual(Object.keys(localStorage).filter(key => key.startsWith('ai_chat_draft:')), []);
+    const assertBlankChatView = when => {
+      assert.equal(messageList.childElementCount, 0, `previous messages remain ${when}`);
+      assert.equal(messageList.classList.contains('hidden'), true, `message list still shown ${when}`);
+      assert.equal(document.getElementById('emptyState').classList.contains('hidden'), false, `empty state not shown ${when}`);
+      assert.equal(document.querySelector('#chatList .chat-item'), null, `previous chats still listed ${when}`);
+    };
+    assertBlankChatView('after sign-out');
+    assert.equal(search.value, '', 'sidebar search survived sign-out');
+    slowNetwork = null;
+    finishLoading();
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assertBlankChatView('once the slow responses arrive');
+
+    document.getElementById('loginUser').value = 'second';
+    document.getElementById('loginPass').value = 'second-password';
+    document.getElementById('loginForm').requestSubmit();
+    await waitFor(() => document.getElementById('userName').textContent === 'second', 'second account did not sign in');
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assertBlankChatView('for the next account');
+    assert.equal(document.querySelector('.main-title-copy h1').textContent, '新对话');
+    assert.equal(input.value, '');
+    // The credentials must not wait in the hidden sign-in form for the next person.
+    assert.equal(document.getElementById('loginUser').value, '', 'username left in the sign-in form');
+    assert.equal(document.getElementById('loginPass').value, '', 'password left in the sign-in form');
   } finally {
     await new Promise(resolve => setTimeout(resolve, 250));
     dom.window.close();

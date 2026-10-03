@@ -17,12 +17,15 @@ export function createSidebarController({
   const DEFAULT_CHAT_MODEL = defaultChatModel;
 
 async function loadChats({ showLoading = false, notifyError = false } = {}) {
+  const userId = state.user?.id;
   if (showLoading) {
     state.chatListLoading = true;
     renderChatList();
   }
   try {
     const data = await API.get('/chats');
+    // A list requested before a sign-out belongs to the previous account.
+    if (state.user?.id !== userId) return;
     state.chats = (data.chats || []).map(chat => ({ ...chat, model: normalizeChatModel(chat.model) }));
     state.chatListLoading = false;
     renderChatList();
