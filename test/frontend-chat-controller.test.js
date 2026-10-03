@@ -39,7 +39,7 @@ async function waitFor(predicate, message, timeoutMs = 3000) {
 test('frontend controllers send, stop, and regenerate through the real app entry', async t => {
   const html = fs.readFileSync(path.join(projectRoot, 'public', 'index.html'), 'utf8');
   const dom = new JSDOM(html, { url: 'https://chat-controller.example.test/' });
-  const globalNames = ['window', 'document', 'Node', 'DOMException', 'localStorage', 'navigator', 'marked', 'fetch', 'requestAnimationFrame'];
+  const globalNames = ['window', 'document', 'Node', 'DOMException', 'localStorage', 'navigator', 'marked', 'fetch', 'requestAnimationFrame', 'CSS'];
   const previous = new Map(globalNames.map(name => [name, Object.getOwnPropertyDescriptor(global, name)]));
   const globals = {
     window: dom.window,
@@ -50,13 +50,16 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     navigator: dom.window.navigator,
     marked,
     requestAnimationFrame: callback => setTimeout(callback, 0),
+    CSS: { escape: value => String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&') },
   };
   for (const [name, value] of Object.entries(globals)) {
     Object.defineProperty(global, name, { value, configurable: true, writable: true });
   }
   window.marked = marked;
-  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
-  window.CSS = { escape: value => String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&') };
+  // Set to true to match the phone-width media query, like a phone.
+  let phoneLayout = false;
+  window.matchMedia = query => ({ matches: phoneLayout && query === '(max-width: 720px)', addEventListener() {}, removeEventListener() {} });
+  window.CSS = CSS;
   Object.defineProperty(window.navigator, 'clipboard', { value: { writeText: async () => {} }, configurable: true });
   localStorage.setItem('ai_chat_token', 'frontend-test-token');
 
@@ -72,7 +75,11 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     if (tokenExpired && options.headers?.Authorization) return json({ error: '登录已过期' }, 401);
     const pathname = String(url).replace(/^https?:\/\/[^/]+/, '');
     if (pathname === '/api/auth/me') return json({ user: { id: 'u1', username: 'tester' } });
-    if (pathname === '/api/auth/login') return json({ token: 'second-token', user: { id: 'u2', username: 'second' } });
+    if (pathname === '/api/auth/login') {
+      // The first account signs back in by its name; any other name is the second account.
+      if (JSON.parse(options.body).login === 'tester') return json({ token: 'tester-token', user: { id: 'u1', username: 'tester' } });
+      return json({ token: 'second-token', user: { id: 'u2', username: 'second' } });
+    }
     if (pathname === '/api/auth/profile' && options.method === 'PATCH') {
       // Like routes/auth.js, a saved profile comes back with a freshly signed token.
       return json({ token: 'renamed-token', user: { id: 'u2', username: JSON.parse(options.body).newUsername } });
@@ -216,6 +223,8 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     };
     assertBlankChatView('after sign-out');
     assert.equal(search.value, '', 'sidebar search survived sign-out');
+    assert.equal(document.getElementById('userName').textContent, '', 'account name survived sign-out');
+    assert.equal(document.getElementById('userAvatar').textContent, '', 'account initial survived sign-out');
     slowNetwork = null;
     finishLoading();
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -281,6 +290,28 @@ test('frontend controllers send, stop, and regenerate through the real app entry
     assert.equal(document.getElementById('settingsBackdrop').classList.contains('hidden'), true, 'settings backdrop left over the sign-in view');
     assert.deepEqual(filledSettingsInputs(), [], 'settings form kept what the expired session typed');
     await waitFor(() => !document.querySelector('.app-dialog-backdrop'), 'delete-account prompt left over the sign-in view');
+
+    // On a phone a reply's 操作 button opens a sheet over the whole page instead.
+    // Sign the first account back in, open the sheet on its reply, and let the
+    // token expire the same way: the sheet must not stay over the sign-in view.
+    tokenExpired = false;
+    document.getElementById('loginUser').value = 'tester';
+    document.getElementById('loginPass').value = 'tester-password';
+    document.getElementById('loginForm').requestSubmit();
+    (await waitFor(() => document.querySelector('.chat-item[data-chat-id="c1"]'), 'first account did not sign back in')).click();
+    const reply = await waitFor(() => messageList.querySelector('.message-role-assistant'), 'first account chat did not reopen');
+    slowNetwork = new Promise(resolve => { finishCreating = resolve; });
+    document.getElementById('railNewChatBtn').click();
+    phoneLayout = true;
+    reply.querySelector('[data-message-menu-toggle]').click();
+    phoneLayout = false;
+    assert.ok(document.getElementById('mobileMessageActionSheet'), 'message action sheet did not open');
+    tokenExpired = true;
+    slowNetwork = null;
+    finishCreating();
+    await waitFor(() => !document.getElementById('authView').classList.contains('hidden'), 'expired phone session did not return to sign-in');
+    assert.equal(document.getElementById('mobileMessageActionSheet'), null, 'message action sheet left over the sign-in view');
+    assert.equal(document.getElementById('mobileMessageActionBackdrop'), null, 'message action backdrop left over the sign-in view');
   } finally {
     await new Promise(resolve => setTimeout(resolve, 250));
     dom.window.close();
